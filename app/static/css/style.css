@@ -124,6 +124,8 @@ main {
 .main-content {
     margin-left: 240px;
     min-height: 100vh;
+    display: flex;
+    flex-direction: column;
 }
 
 /* Top Bar */
@@ -614,6 +616,7 @@ footer {
     color: var(--text-muted);
     font-size: 0.875rem;
     text-align: center;
+    flex-shrink: 0;
 }
 
 /* Responsive */
@@ -629,6 +632,9 @@ footer {
     
     .main-content {
         margin-left: 0;
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
     }
     
     .stats-grid {
@@ -641,6 +647,7 @@ footer {
     
     main {
         padding: 1rem;
+        flex: 1;
     }
 }
 

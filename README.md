@@ -2,7 +2,10 @@
 
 A **stateless**, self-hosted, server-side rendered (SSR) dashboard for managing a private [LiveKit](https://livekit.io) server. Built with **FastAPI** and **Jinja2** templates, using only the LiveKit Python SDK for real-time server management.
 
+
 ## ✨ Features
+
+![LiveKit Dashboard](./docs/images/dashboard-overview.png)
 
 - 🎯 **Stateless Architecture** - No database, no Redis, no background workers
 - 🔐 **Simple Authentication** - HTTP Basic Auth with one admin account
@@ -20,18 +23,21 @@ A **stateless**, self-hosted, server-side rendered (SSR) dashboard for managing 
 ## 📊 Analytics Dashboard
 
 ### Real-time Analytics
+
 - **Connection Success Rate** - Based on room health and participant status
 - **Platform Distribution** - Web, iOS, Android, React Native client detection
 - **Connection Types** - WebRTC Direct vs TURN Relay analysis
 - **Session Duration** - Live calculation from participant join times
 
 ### Service-Specific Analytics
+
 - **Room Analytics** - Active rooms, participant distribution, room sizes
 - **Egress Analytics** - Job status, success rates, storage usage, type distribution
 - **Ingress Analytics** - Stream monitoring, connection quality, bitrate analysis
 - **SIP Analytics** - Trunk status, call volume, dispatch rules (when enabled)
 
 ### Visual Components
+
 - **Interactive Charts** - Chart.js doughnut charts for data distribution
 - **Responsive Design** - Mobile-friendly analytics cards
 - **Real-time Updates** - Live data from LiveKit APIs
