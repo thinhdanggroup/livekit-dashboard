@@ -60,5 +60,7 @@ docker-compose.override.yml
 CLEANUP_NOTE.md
 test_sip_analytics.py
 setup_git.sh
+setup_ssh.sh
 COMMIT_MESSAGE.md
+SSH_SETUP_GUIDE.md
 
