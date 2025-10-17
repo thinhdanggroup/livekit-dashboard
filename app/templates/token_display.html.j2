@@ -1,0 +1,65 @@
+<!-- Token Display Modal (for HTMX responses) -->
+<div class="modal fade show d-block" id="tokenDisplayModal" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-check-circle"></i> Token Generated Successfully
+                </h5>
+                <button type="button" class="btn-close btn-close-white" onclick="closeTokenModal()"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-success">
+                    <i class="bi bi-info-circle"></i> Your join token has been generated. Copy it below:
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">JWT Token</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control font-monospace" id="tokenValue" 
+                               value="{{ token }}" readonly>
+                        <button class="btn btn-outline-secondary" type="button" onclick="copyTokenValue()">
+                            <i class="bi bi-clipboard"></i> Copy
+                        </button>
+                    </div>
+                </div>
+
+                {% if details %}
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <h6 class="card-title">Token Details</h6>
+                        <ul class="mb-0 small">
+                            <li><strong>Room:</strong> {{ details.room }}</li>
+                            <li><strong>Identity:</strong> {{ details.identity }}</li>
+                            <li><strong>Name:</strong> {{ details.name or details.identity }}</li>
+                            <li><strong>TTL:</strong> {{ details.ttl }}s</li>
+                        </ul>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeTokenModal()">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyTokenValue() {
+    const tokenInput = document.getElementById('tokenValue');
+    tokenInput.select();
+    document.execCommand('copy');
+    alert('Token copied to clipboard!');
+}
+
+function closeTokenModal() {
+    const modal = document.getElementById('tokenDisplayModal');
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
+}
+
+// Prevent body scroll when modal is open
+document.body.style.overflow = 'hidden';
+</script>
+

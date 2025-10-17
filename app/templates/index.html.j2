@@ -1,0 +1,667 @@
+{% extends "base.html.j2" %}
+
+{% block title %}Overview - LiveKit Dashboard{% endblock %}
+
+{% block page_header %}
+<div class="d-flex justify-content-between align-items-center w-100">
+    <div>
+        <h1 class="page-title">Overview</h1>
+        <div class="page-subtitle">
+            Last updated <span id="last-updated">{{ last_updated }}</span> ago
+        </div>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-sm btn-secondary" onclick="toggleAutoRefresh()">
+            <i class="bi bi-arrow-clockwise"></i>
+            <span id="auto-refresh-text">Auto-refresh off</span>
+        </button>
+        <select class="form-select form-select-sm" style="width: auto;" id="time-range">
+            <option value="7">Past 7 days</option>
+            <option value="30">Past 30 days</option>
+            <option value="90">Past 90 days</option>
+        </select>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Get Started Section -->
+<div class="get-started-section">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="section-title">Get started</h5>
+        <button class="btn-dismiss" onclick="dismissGetStarted()">Dismiss</button>
+    </div>
+    <div class="quickstart-grid">
+        <div class="quickstart-card">
+            <div class="quickstart-icon">
+                <i class="bi bi-play-circle"></i>
+            </div>
+            <div class="quickstart-content">
+                <h6 class="quickstart-title">Try sandbox</h6>
+                <p class="quickstart-description">The fastest way to test cloud apps</p>
+            </div>
+        </div>
+        
+        <a href="https://docs.livekit.io/agents/quickstart/" target="_blank" class="quickstart-card">
+            <div class="quickstart-icon">
+                <i class="bi bi-mic"></i>
+            </div>
+            <div class="quickstart-content">
+                <h6 class="quickstart-title">Voice AI quickstart <i class="bi bi-arrow-up-right"></i></h6>
+                <p class="quickstart-description">Build your first voice AI agent in under 10 minutes</p>
+            </div>
+        </a>
+        
+        <a href="https://docs.livekit.io/sip/" target="_blank" class="quickstart-card">
+            <div class="quickstart-icon">
+                <i class="bi bi-telephone"></i>
+            </div>
+            <div class="quickstart-content">
+                <h6 class="quickstart-title">Telephony integrations <i class="bi bi-arrow-up-right"></i></h6>
+                <p class="quickstart-description">Connect LiveKit to a telephone system using SIP</p>
+            </div>
+        </a>
+        
+        <a href="https://docs.livekit.io/home/get-started/quickstarts/" target="_blank" class="quickstart-card">
+            <div class="quickstart-icon">
+                <i class="bi bi-file-code"></i>
+            </div>
+            <div class="quickstart-content">
+                <h6 class="quickstart-title">Find your SDK quickstart <i class="bi bi-arrow-up-right"></i></h6>
+                <p class="quickstart-description">Quickstarts for every platform</p>
+            </div>
+        </a>
+    </div>
+</div>
+
+<!-- Analytics Metrics -->
+<div class="analytics-grid">
+    <div class="metric-card">
+        <div class="metric-header">
+            <span class="metric-title">Connection success</span>
+            <i class="bi bi-info-circle text-muted"></i>
+        </div>
+        <div class="metric-value">
+            <span class="metric-number">{{ analytics.connection_success }}%</span>
+        </div>
+    </div>
+    
+    <div class="metric-card">
+        <div class="metric-header">
+            <span class="metric-title">Platforms</span>
+            <i class="bi bi-info-circle text-muted"></i>
+        </div>
+        <div class="metric-body">
+            {% if analytics.platforms %}
+                <canvas id="platformsChart" height="150"></canvas>
+            {% else %}
+                <div class="no-data-message">No data for the selected time range.</div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="metric-card">
+        <div class="metric-header">
+            <span class="metric-title">Connection type</span>
+            <i class="bi bi-info-circle text-muted"></i>
+        </div>
+        <div class="metric-body">
+            {% if analytics.connection_types %}
+                <canvas id="connectionTypeChart" height="150"></canvas>
+            {% else %}
+                <div class="no-data-message">No data for the selected time range.</div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="metric-card">
+        <div class="metric-header">
+            <span class="metric-title">Connection minutes</span>
+            <i class="bi bi-info-circle text-muted"></i>
+        </div>
+        <div class="metric-value">
+            <span class="metric-number">{{ analytics.connection_minutes }}</span>
+            <span class="metric-unit">min</span>
+        </div>
+    </div>
+</div>
+
+<!-- Expandable Analytics Sections -->
+<div class="expandable-sections">
+    <!-- Bandwidth -->
+    <div class="expandable-section">
+        <button class="expandable-header" onclick="toggleSection('bandwidth')">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-chevron-right section-arrow" id="bandwidth-arrow"></i>
+                <span>Bandwidth</span>
+            </div>
+        </button>
+        <div class="expandable-content" id="bandwidth-content">
+            <div class="section-placeholder">
+                <p class="text-muted">Bandwidth analytics will be displayed here.</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Participants -->
+    <div class="expandable-section">
+        <button class="expandable-header" onclick="toggleSection('participants')">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-chevron-right section-arrow" id="participants-arrow"></i>
+                <span>Participants</span>
+            </div>
+        </button>
+        <div class="expandable-content" id="participants-content">
+            <div class="section-placeholder">
+                <div class="stats-row">
+                    <div class="stat-item">
+                        <div class="stat-label-small">Total Participants</div>
+                        <div class="stat-value-small">{{ server_info.participants_count }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Rooms -->
+    <div class="expandable-section">
+        <button class="expandable-header" onclick="toggleSection('rooms')">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-chevron-right section-arrow" id="rooms-arrow"></i>
+                <span>Rooms</span>
+            </div>
+        </button>
+        <div class="expandable-content" id="rooms-content">
+            {% if room_analytics %}
+            <div class="analytics-grid mb-4">
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-title">Active Rooms</span>
+                        <i class="bi bi-info-circle text-muted"></i>
+                    </div>
+                    <div class="metric-value">
+                        <span class="metric-number">{{ room_analytics.active_rooms }}</span>
+                    </div>
+                    <div class="metric-details">
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted">Total:</span>
+                            <span>{{ room_analytics.total_rooms }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted">Empty:</span>
+                            <span>{{ room_analytics.empty_rooms }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-title">Participants</span>
+                        <i class="bi bi-info-circle text-muted"></i>
+                    </div>
+                    <div class="metric-value">
+                        <span class="metric-number">{{ room_analytics.total_participants }}</span>
+                    </div>
+                    <div class="metric-subtitle text-muted">Avg: {{ room_analytics.avg_participants }} per room</div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-title">Room Sizes</span>
+                        <i class="bi bi-info-circle text-muted"></i>
+                    </div>
+                    <div class="metric-body">
+                        {% if room_analytics.room_sizes and room_analytics.room_sizes.values() | sum > 0 %}
+                            <canvas id="roomSizesChart" height="150"></canvas>
+                        {% else %}
+                            <div class="no-data-message">No active rooms.</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-title">API Latency</span>
+                        <i class="bi bi-info-circle text-muted"></i>
+                    </div>
+                    <div class="metric-value">
+                        <span class="metric-number">{{ room_analytics.api_latency_ms }}</span>
+                        <span class="metric-unit">ms</span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <div class="mt-3">
+                <a href="/rooms" class="btn btn-sm btn-primary">View All Rooms</a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Egress -->
+    <div class="expandable-section">
+        <button class="expandable-header" onclick="toggleSection('egress')">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-chevron-right section-arrow" id="egress-arrow"></i>
+                <span>Egress</span>
+            </div>
+        </button>
+        <div class="expandable-content" id="egress-content">
+            {% if egress_analytics %}
+            <div class="analytics-grid mb-4">
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-title">Active Jobs</span>
+                        <i class="bi bi-info-circle text-muted"></i>
+                    </div>
+                    <div class="metric-value">
+                        <span class="metric-number">{{ egress_analytics.active_jobs }}</span>
+                    </div>
+                    <div class="metric-details">
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted">Completed:</span>
+                            <span>{{ egress_analytics.completed_jobs }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted">Failed:</span>
+                            <span>{{ egress_analytics.failed_jobs }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-title">Success Rate</span>
+                        <i class="bi bi-info-circle text-muted"></i>
+                    </div>
+                    <div class="metric-value">
+                        <span class="metric-number">{{ egress_analytics.success_rate }}%</span>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-title">Egress Types</span>
+                        <i class="bi bi-info-circle text-muted"></i>
+                    </div>
+                    <div class="metric-body">
+                        {% if egress_analytics.egress_types and egress_analytics.egress_types.values() | sum > 0 %}
+                            <canvas id="egressTypesChart" height="150"></canvas>
+                        {% else %}
+                            <div class="no-data-message">No egress data available.</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-title">Storage Used</span>
+                        <i class="bi bi-info-circle text-muted"></i>
+                    </div>
+                    <div class="metric-value">
+                        <span class="metric-number">{{ egress_analytics.storage_used_gb }}</span>
+                        <span class="metric-unit">GB</span>
+                    </div>
+                    <div class="metric-subtitle text-muted">Estimated usage</div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <div class="mt-3">
+                <a href="/egress" class="btn btn-sm btn-primary">View Egress</a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Ingress -->
+    <div class="expandable-section">
+        <button class="expandable-header" onclick="toggleSection('ingress')">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-chevron-right section-arrow" id="ingress-arrow"></i>
+                <span>Ingress</span>
+            </div>
+        </button>
+        <div class="expandable-content" id="ingress-content">
+            {% if ingress_analytics %}
+            <div class="analytics-grid mb-4">
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-title">Active Streams</span>
+                        <i class="bi bi-info-circle text-muted"></i>
+                    </div>
+                    <div class="metric-value">
+                        <span class="metric-number">{{ ingress_analytics.active_ingress }}</span>
+                    </div>
+                    <div class="metric-details">
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted">Total:</span>
+                            <span>{{ ingress_analytics.total_ingress }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-title">Connection Quality</span>
+                        <i class="bi bi-info-circle text-muted"></i>
+                    </div>
+                    <div class="metric-value">
+                        <span class="metric-number">{{ ingress_analytics.connection_stability }}%</span>
+                    </div>
+                    <div class="metric-subtitle text-muted">Stability rate</div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-title">Stream Types</span>
+                        <i class="bi bi-info-circle text-muted"></i>
+                    </div>
+                    <div class="metric-body">
+                        {% if ingress_analytics.ingress_types and ingress_analytics.ingress_types.values() | sum > 0 %}
+                            <canvas id="ingressTypesChart" height="150"></canvas>
+                        {% else %}
+                            <div class="no-data-message">No ingress data available.</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-title">Avg Bitrate</span>
+                        <i class="bi bi-info-circle text-muted"></i>
+                    </div>
+                    <div class="metric-value">
+                        <span class="metric-number">{{ ingress_analytics.avg_bitrate_mbps }}</span>
+                        <span class="metric-unit">Mbps</span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Telephony -->
+    {% if sip_enabled %}
+    <div class="expandable-section">
+        <button class="expandable-header" onclick="toggleSection('telephony')">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-chevron-right section-arrow" id="telephony-arrow"></i>
+                <span>Telephony</span>
+            </div>
+        </button>
+        <div class="expandable-content" id="telephony-content">
+            {% if sip_analytics %}
+            <div class="analytics-grid mb-4">
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-title">Total SIP Trunks</span>
+                        <i class="bi bi-info-circle text-muted"></i>
+                    </div>
+                    <div class="metric-value">
+                        <span class="metric-number">{{ sip_analytics.total_trunks }}</span>
+                    </div>
+                    <div class="metric-details">
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted">Inbound:</span>
+                            <span>{{ sip_analytics.inbound_trunks }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted">Outbound:</span>
+                            <span>{{ sip_analytics.outbound_trunks }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-title">Connection Success</span>
+                        <i class="bi bi-info-circle text-muted"></i>
+                    </div>
+                    <div class="metric-value">
+                        <span class="metric-number">{{ "%.1f" | format(sip_analytics.connection_success_rate) }}%</span>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-title">Trunk Status</span>
+                        <i class="bi bi-info-circle text-muted"></i>
+                    </div>
+                    <div class="metric-body">
+                        {% if sip_analytics.trunk_status and sip_analytics.trunk_status.values() | sum > 0 %}
+                            <canvas id="trunkStatusChart" height="150"></canvas>
+                        {% else %}
+                            <div class="no-data-message">No trunk data available.</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-title">Dispatch Rules</span>
+                        <i class="bi bi-info-circle text-muted"></i>
+                    </div>
+                    <div class="metric-value">
+                        <span class="metric-number">{{ sip_analytics.dispatch_rules }}</span>
+                        <span class="metric-unit">rules</span>
+                    </div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-title">Call Volume</span>
+                        <i class="bi bi-info-circle text-muted"></i>
+                    </div>
+                    <div class="metric-value">
+                        <span class="metric-number">{{ sip_analytics.call_volume }}</span>
+                        <span class="metric-unit">calls</span>
+                    </div>
+                    <div class="metric-subtitle text-muted">Past 24 hours</div>
+                </div>
+            </div>
+            {% else %}
+            <div class="section-placeholder">
+                <p class="text-muted">Loading telephony analytics...</p>
+                <p class="text-muted">If SIP is enabled but no data shows, check server logs for errors.</p>
+            </div>
+            {% endif %}
+            
+            <div class="mt-3">
+                <a href="/sip-outbound" class="btn btn-sm btn-primary me-2">Outbound Calls</a>
+                <a href="/sip-inbound" class="btn btn-sm btn-secondary">Inbound Rules</a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+<script>
+// Toggle expandable sections
+function toggleSection(sectionId) {
+    const content = document.getElementById(sectionId + '-content');
+    const arrow = document.getElementById(sectionId + '-arrow');
+    
+    if (content.style.display === 'block') {
+        content.style.display = 'none';
+        arrow.style.transform = 'rotate(0deg)';
+    } else {
+        content.style.display = 'block';
+        arrow.style.transform = 'rotate(90deg)';
+    }
+}
+
+// Dismiss get started section
+function dismissGetStarted() {
+    document.querySelector('.get-started-section').style.display = 'none';
+}
+
+// Toggle auto refresh
+let autoRefreshEnabled = false;
+function toggleAutoRefresh() {
+    autoRefreshEnabled = !autoRefreshEnabled;
+    const text = document.getElementById('auto-refresh-text');
+    text.textContent = autoRefreshEnabled ? 'Auto-refresh on' : 'Auto-refresh off';
+}
+
+// Initialize charts if data exists
+{% if analytics.platforms %}
+const platformsCtx = document.getElementById('platformsChart');
+if (platformsCtx) {
+    new Chart(platformsCtx, {
+        type: 'doughnut',
+        data: {
+            labels: {{ analytics.platforms.keys() | list | tojson }},
+            datasets: [{
+                data: {{ analytics.platforms.values() | list | tojson }},
+                backgroundColor: ['#5b8bff', '#3b82f6', '#22c55e', '#f59e0b'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+}
+{% endif %}
+
+{% if analytics.connection_types %}
+const connectionTypeCtx = document.getElementById('connectionTypeChart');
+if (connectionTypeCtx) {
+    new Chart(connectionTypeCtx, {
+        type: 'doughnut',
+        data: {
+            labels: {{ analytics.connection_types.keys() | list | tojson }},
+            datasets: [{
+                data: {{ analytics.connection_types.values() | list | tojson }},
+                backgroundColor: ['#5b8bff', '#3b82f6', '#22c55e'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+}
+{% endif %}
+
+{% if sip_enabled and sip_analytics and sip_analytics.trunk_status %}
+const trunkStatusCtx = document.getElementById('trunkStatusChart');
+if (trunkStatusCtx) {
+    new Chart(trunkStatusCtx, {
+        type: 'doughnut',
+        data: {
+            labels: {{ sip_analytics.trunk_status.keys() | list | tojson }},
+            datasets: [{
+                data: {{ sip_analytics.trunk_status.values() | list | tojson }},
+                backgroundColor: ['#22c55e', '#f59e0b'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+}
+{% endif %}
+
+{% if room_analytics and room_analytics.room_sizes %}
+const roomSizesCtx = document.getElementById('roomSizesChart');
+if (roomSizesCtx) {
+    new Chart(roomSizesCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Small (1-5)', 'Medium (6-20)', 'Large (21+)'],
+            datasets: [{
+                data: [{{ room_analytics.room_sizes.small }}, {{ room_analytics.room_sizes.medium }}, {{ room_analytics.room_sizes.large }}],
+                backgroundColor: ['#22c55e', '#3b82f6', '#f59e0b'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+}
+{% endif %}
+
+{% if egress_analytics and egress_analytics.egress_types %}
+const egressTypesCtx = document.getElementById('egressTypesChart');
+if (egressTypesCtx) {
+    new Chart(egressTypesCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Room Composite', 'Participant', 'Track', 'Web'],
+            datasets: [{
+                data: [{{ egress_analytics.egress_types.room_composite }}, {{ egress_analytics.egress_types.participant }}, {{ egress_analytics.egress_types.track }}, {{ egress_analytics.egress_types.web }}],
+                backgroundColor: ['#5b8bff', '#22c55e', '#3b82f6', '#f59e0b'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+}
+{% endif %}
+
+{% if ingress_analytics and ingress_analytics.ingress_types %}
+const ingressTypesCtx = document.getElementById('ingressTypesChart');
+if (ingressTypesCtx) {
+    new Chart(ingressTypesCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['RTMP', 'WHIP', 'URL'],
+            datasets: [{
+                data: [{{ ingress_analytics.ingress_types.rtmp }}, {{ ingress_analytics.ingress_types.whip }}, {{ ingress_analytics.ingress_types.url }}],
+                backgroundColor: ['#ef4444', '#22c55e', '#3b82f6'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+}
+{% endif %}
+</script>
+{% endblock %}

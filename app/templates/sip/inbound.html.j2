@@ -1,0 +1,606 @@
+{% extends "base.html.j2" %}
+
+{% block title %}SIP Inbound Configuration - LiveKit Dashboard{% endblock %}
+
+{% block page_title %}Telephony{% endblock %}
+
+{% block page_subtitle %}
+<p class="page-subtitle">Configuration - Inbound Trunks & Dispatch Rules</p>
+{% endblock %}
+
+{% block content %}
+<!-- Flash Messages -->
+{% if flash_message %}
+<div class="alert alert-{{ flash_type or 'info' }} alert-dismissible fade show" role="alert">
+    {{ flash_message }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+
+<!-- Stats -->
+<div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+    <div class="stat-card">
+        <div class="stat-label">
+            <i class="bi bi-telephone-inbound"></i> Inbound Trunks
+        </div>
+        <div class="stat-value info">
+            {{ trunks|length }}
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">
+            <i class="bi bi-diagram-3"></i> Dispatch Rules
+        </div>
+        <div class="stat-value info">
+            {{ rules|length }}
+        </div>
+    </div>
+</div>
+
+<!-- SIP Inbound Trunks -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="card-title">
+            <i class="bi bi-telephone-inbound"></i> Inbound Trunks
+        </h5>
+        <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#createTrunkModal">
+            <i class="bi bi-plus-circle"></i> Create Trunk
+        </button>
+    </div>
+    <div class="card-body">
+        {% if trunks %}
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Trunk ID</th>
+                        <th>Name</th>
+                        <th>Numbers</th>
+                        <th>Allowed Addresses</th>
+                        <th>Auth Username</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for trunk in trunks %}
+                    <tr>
+                        <td>
+                            <code style="color: var(--text-secondary); background-color: var(--bg-tertiary); padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-size: 0.8125rem;">
+                                {{ trunk.sip_trunk_id[:16] }}...
+                            </code>
+                        </td>
+                        <td>
+                            <strong style="color: var(--text-primary);">{{ trunk.name or 'Unnamed' }}</strong>
+                        </td>
+                        <td>
+                            {% if trunk.numbers %}
+                            <span style="color: var(--text-secondary);">{{ trunk.numbers|join(', ') }}</span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if trunk.allowed_addresses %}
+                            <span style="color: var(--text-secondary);">{{ trunk.allowed_addresses|join(', ') }}</span>
+                            {% else %}
+                            <span class="text-muted">Any</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if trunk.auth_username %}
+                            <span style="color: var(--text-secondary);">{{ trunk.auth_username }}</span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button class="btn btn-outline-primary" onclick="editTrunk('{{ trunk.sip_trunk_id }}', '{{ trunk.name or '' }}', '{{ trunk.numbers|join(',') if trunk.numbers else '' }}', '{{ trunk.allowed_addresses|join(',') if trunk.allowed_addresses else '' }}', '{{ trunk.allowed_numbers|join(',') if trunk.allowed_numbers else '' }}', '{{ trunk.auth_username or '' }}', '{{ trunk.metadata or '' }}')">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-outline-danger" onclick="confirmDeleteTrunk('{{ trunk.sip_trunk_id }}', '{{ trunk.name or 'Unnamed' }}')">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <i class="bi bi-telephone-inbound"></i>
+            </div>
+            <div class="empty-state-title">No inbound trunks configured</div>
+            <div class="empty-state-description">
+                Create an inbound trunk to accept SIP calls from external providers.
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- SIP Dispatch Rules -->
+<div class="card mt-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="card-title">
+            <i class="bi bi-diagram-3"></i> Dispatch Rules
+        </h5>
+        <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#createRuleModal">
+            <i class="bi bi-plus-circle"></i> Create Rule
+        </button>
+    </div>
+    <div class="card-body">
+        {% if rules %}
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Rule ID</th>
+                        <th>Name</th>
+                        <th>Trunk IDs</th>
+                        <th>Room Name</th>
+                        <th>PIN</th>
+                        <th>Agent</th>
+                        <th>Hide Phone</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for rule in rules %}
+                    <tr>
+                        <td>
+                            <code style="color: var(--text-secondary); background-color: var(--bg-tertiary); padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-size: 0.8125rem;">
+                                {{ rule.sip_dispatch_rule_id[:16] }}...
+                            </code>
+                        </td>
+                        <td>
+                            <strong style="color: var(--text-primary);">{{ rule.name or 'Unnamed' }}</strong>
+                        </td>
+                        <td>
+                            {% if rule.trunk_ids %}
+                            <code style="color: var(--text-secondary); background-color: var(--bg-tertiary); padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-size: 0.8125rem;">
+                                {{ rule.trunk_ids|length }} trunk(s)
+                            </code>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span style="color: var(--text-secondary);">{{ rule.room_name or '-' }}</span>
+                        </td>
+                        <td>
+                            {% if rule.pin %}
+                            <span class="badge badge-secondary">{{ rule.pin }}</span>
+                            {% else %}
+                            <span class="text-muted">No PIN</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if rule.room_config and rule.room_config.agents and rule.room_config.agents|length > 0 %}
+                            <span style="color: var(--text-primary);">
+                                <i class="bi bi-robot"></i> {{ rule.room_config.agents[0].agent_name }}
+                            </span>
+                            {% else %}
+                            <span class="text-muted">No Agent</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if rule.hide_phone_number %}
+                            <span class="badge badge-info">Yes</span>
+                            {% else %}
+                            <span class="badge badge-secondary">No</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button class="btn btn-outline-primary" onclick="editRule('{{ rule.sip_dispatch_rule_id }}', '{{ rule.name or '' }}', '{{ rule.trunk_ids|join(',') if rule.trunk_ids else '' }}', '{{ rule.room_name or '' }}', '{{ rule.pin or '' }}', {{ 'true' if rule.hide_phone_number else 'false' }}, '{{ rule.metadata or '' }}', '{{ rule.room_config.agents[0].agent_name if rule.room_config and rule.room_config.agents and rule.room_config.agents|length > 0 else '' }}', '{{ rule.room_config.agents[0].metadata if rule.room_config and rule.room_config.agents and rule.room_config.agents|length > 0 else '' }}')">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-outline-danger" onclick="confirmDeleteRule('{{ rule.sip_dispatch_rule_id }}', '{{ rule.name or 'Unnamed' }}')">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <i class="bi bi-diagram-3"></i>
+            </div>
+            <div class="empty-state-title">No dispatch rules configured</div>
+            <div class="empty-state-description">
+                SIP dispatch rules determine how inbound calls are routed to rooms.
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Create Trunk Modal -->
+<div class="modal fade" id="createTrunkModal" tabindex="-1" aria-labelledby="createTrunkModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="POST" action="/sip-inbound/trunk/create">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="createTrunkModalLabel">
+                        <i class="bi bi-telephone-inbound"></i> Create Inbound Trunk
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="trunk_name" class="form-label">Trunk Name</label>
+                        <input type="text" class="form-control" id="trunk_name" name="trunk_name" placeholder="e.g., My Inbound Trunk">
+                    </div>
+                    <div class="mb-3">
+                        <label for="numbers" class="form-label">Phone Numbers</label>
+                        <input type="text" class="form-control" id="numbers" name="numbers" placeholder="e.g., +1234567890, +0987654321">
+                        <small class="form-text text-muted">Comma-separated list of phone numbers</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="allowed_addresses" class="form-label">Allowed IP Addresses (Optional)</label>
+                        <input type="text" class="form-control" id="allowed_addresses" name="allowed_addresses" placeholder="e.g., 192.168.1.1, 10.0.0.0/8">
+                        <small class="form-text text-muted">Comma-separated list. Leave empty to allow any IP</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="allowed_numbers" class="form-label">Allowed Phone Numbers (Optional)</label>
+                        <input type="text" class="form-control" id="allowed_numbers" name="allowed_numbers" placeholder="e.g., +1234567890, +0987654321">
+                        <small class="form-text text-muted">Comma-separated list. Leave empty to allow any number</small>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="username" class="form-label">Auth Username (Optional)</label>
+                            <input type="text" class="form-control" id="username" name="username" placeholder="Username">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="password" class="form-label">Auth Password (Optional)</label>
+                            <input type="password" class="form-control" id="password" name="password" placeholder="Password">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="metadata" class="form-label">Metadata (Optional)</label>
+                        <textarea class="form-control" id="metadata" name="metadata" rows="2" placeholder="Additional metadata"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle"></i> Create Trunk
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Trunk Modal -->
+<div class="modal fade" id="editTrunkModal" tabindex="-1" aria-labelledby="editTrunkModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="POST" action="/sip-inbound/trunk/update">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" id="edit_sip_trunk_id" name="sip_trunk_id">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editTrunkModalLabel">
+                        <i class="bi bi-pencil"></i> Edit Inbound Trunk
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="edit_trunk_name" class="form-label">Trunk Name</label>
+                        <input type="text" class="form-control" id="edit_trunk_name" name="trunk_name">
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_numbers" class="form-label">Phone Numbers</label>
+                        <input type="text" class="form-control" id="edit_numbers" name="numbers">
+                        <small class="form-text text-muted">Comma-separated list of phone numbers</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_allowed_addresses" class="form-label">Allowed IP Addresses (Optional)</label>
+                        <input type="text" class="form-control" id="edit_allowed_addresses" name="allowed_addresses">
+                        <small class="form-text text-muted">Comma-separated list. Leave empty to allow any IP</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_allowed_numbers" class="form-label">Allowed Phone Numbers (Optional)</label>
+                        <input type="text" class="form-control" id="edit_allowed_numbers" name="allowed_numbers">
+                        <small class="form-text text-muted">Comma-separated list. Leave empty to allow any number</small>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_username" class="form-label">Auth Username (Optional)</label>
+                            <input type="text" class="form-control" id="edit_username" name="username">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_password" class="form-label">Auth Password (Optional)</label>
+                            <input type="password" class="form-control" id="edit_password" name="password" placeholder="Leave empty to keep current">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_metadata" class="form-label">Metadata (Optional)</label>
+                        <textarea class="form-control" id="edit_metadata" name="metadata" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle"></i> Update Trunk
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Create Rule Modal -->
+<div class="modal fade" id="createRuleModal" tabindex="-1" aria-labelledby="createRuleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="POST" action="/sip-inbound/rule/create">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="createRuleModalLabel">
+                        <i class="bi bi-diagram-3"></i> Create Dispatch Rule
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="rule_name" class="form-label">Rule Name</label>
+                        <input type="text" class="form-control" id="rule_name" name="rule_name" placeholder="e.g., Main Office Rule">
+                    </div>
+                    <div class="mb-3">
+                        <label for="trunk_ids" class="form-label">Trunk IDs</label>
+                        <input type="text" class="form-control" id="trunk_ids" name="trunk_ids" placeholder="e.g., trunk-id-1, trunk-id-2">
+                        <small class="form-text text-muted">Comma-separated list of trunk IDs to apply this rule to</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="room_name" class="form-label">Room Name</label>
+                        <input type="text" class="form-control" id="room_name" name="room_name" placeholder="e.g., conference-room-1">
+                        <small class="form-text text-muted">The LiveKit room where calls will be routed</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="pin" class="form-label">PIN (Optional)</label>
+                        <input type="text" class="form-control" id="pin" name="pin" placeholder="e.g., 1234">
+                        <small class="form-text text-muted">Require callers to enter a PIN</small>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="hide_phone_number" name="hide_phone_number" value="true">
+                        <label class="form-check-label" for="hide_phone_number">
+                            Hide Phone Number
+                        </label>
+                        <small class="form-text text-muted d-block">Don't expose caller's phone number to room participants</small>
+                    </div>
+                    
+                    <!-- Agent Configuration Section -->
+                    <div class="mb-3">
+                        <h6 class="border-top pt-3 mb-3">
+                            <i class="bi bi-robot"></i> Agent Configuration (Optional)
+                        </h6>
+                    </div>
+                    <div class="mb-3">
+                        <label for="agent_name" class="form-label">Agent Name</label>
+                        <input type="text" class="form-control" id="agent_name" name="agent_name" placeholder="e.g., inbound-agent">
+                        <small class="form-text text-muted">Name of the agent to dispatch to the room</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="agent_metadata" class="form-label">Agent Metadata (Optional)</label>
+                        <textarea class="form-control" id="agent_metadata" name="agent_metadata" rows="2" placeholder="Job dispatch metadata for the agent"></textarea>
+                        <small class="form-text text-muted">Additional metadata to pass to the agent</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="rule_metadata" class="form-label">Rule Metadata (Optional)</label>
+                        <textarea class="form-control" id="rule_metadata" name="metadata" rows="2" placeholder="Additional metadata for the dispatch rule"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle"></i> Create Rule
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Rule Modal -->
+<div class="modal fade" id="editRuleModal" tabindex="-1" aria-labelledby="editRuleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="POST" action="/sip-inbound/rule/update">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" id="edit_sip_dispatch_rule_id" name="sip_dispatch_rule_id">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editRuleModalLabel">
+                        <i class="bi bi-pencil"></i> Edit Dispatch Rule
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="edit_rule_name" class="form-label">Rule Name</label>
+                        <input type="text" class="form-control" id="edit_rule_name" name="rule_name">
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_trunk_ids" class="form-label">Trunk IDs</label>
+                        <input type="text" class="form-control" id="edit_trunk_ids" name="trunk_ids">
+                        <small class="form-text text-muted">Comma-separated list of trunk IDs</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_room_name" class="form-label">Room Name</label>
+                        <input type="text" class="form-control" id="edit_room_name" name="room_name">
+                        <small class="form-text text-muted">The LiveKit room where calls will be routed</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_pin" class="form-label">PIN (Optional)</label>
+                        <input type="text" class="form-control" id="edit_pin" name="pin">
+                        <small class="form-text text-muted">Require callers to enter a PIN</small>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="edit_hide_phone_number" name="hide_phone_number" value="true">
+                        <label class="form-check-label" for="edit_hide_phone_number">
+                            Hide Phone Number
+                        </label>
+                        <small class="form-text text-muted d-block">Don't expose caller's phone number to room participants</small>
+                    </div>
+                    
+                    <!-- Agent Configuration Section -->
+                    <div class="mb-3">
+                        <h6 class="border-top pt-3 mb-3">
+                            <i class="bi bi-robot"></i> Agent Configuration (Optional)
+                        </h6>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_agent_name" class="form-label">Agent Name</label>
+                        <input type="text" class="form-control" id="edit_agent_name" name="agent_name" placeholder="e.g., inbound-agent">
+                        <small class="form-text text-muted">Name of the agent to dispatch to the room. Leave empty to remove agent</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_agent_metadata" class="form-label">Agent Metadata (Optional)</label>
+                        <textarea class="form-control" id="edit_agent_metadata" name="agent_metadata" rows="2" placeholder="Job dispatch metadata for the agent"></textarea>
+                        <small class="form-text text-muted">Additional metadata to pass to the agent</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="edit_rule_metadata" class="form-label">Rule Metadata (Optional)</label>
+                        <textarea class="form-control" id="edit_rule_metadata" name="metadata" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle"></i> Update Rule
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Trunk Confirmation Modal -->
+<div class="modal fade" id="deleteTrunkModal" tabindex="-1" aria-labelledby="deleteTrunkModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="/sip-inbound/trunk/delete">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" id="delete_sip_trunk_id" name="sip_trunk_id">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteTrunkModalLabel">
+                        <i class="bi bi-exclamation-triangle text-danger"></i> Confirm Delete
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to delete trunk <strong id="delete_trunk_name"></strong>?</p>
+                    <p class="text-danger">This action cannot be undone.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash"></i> Delete Trunk
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Rule Confirmation Modal -->
+<div class="modal fade" id="deleteRuleModal" tabindex="-1" aria-labelledby="deleteRuleModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="/sip-inbound/rule/delete">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" id="delete_sip_dispatch_rule_id" name="sip_dispatch_rule_id">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteRuleModalLabel">
+                        <i class="bi bi-exclamation-triangle text-danger"></i> Confirm Delete
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to delete rule <strong id="delete_rule_name"></strong>?</p>
+                    <p class="text-danger">This action cannot be undone.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash"></i> Delete Rule
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Edit Trunk
+function editTrunk(trunkId, name, numbers, allowedAddresses, allowedNumbers, username, metadata) {
+    document.getElementById('edit_sip_trunk_id').value = trunkId;
+    document.getElementById('edit_trunk_name').value = name;
+    document.getElementById('edit_numbers').value = numbers;
+    document.getElementById('edit_allowed_addresses').value = allowedAddresses;
+    document.getElementById('edit_allowed_numbers').value = allowedNumbers;
+    document.getElementById('edit_username').value = username;
+    document.getElementById('edit_metadata').value = metadata;
+    document.getElementById('edit_password').value = ''; // Clear password field
+    
+    var modal = new bootstrap.Modal(document.getElementById('editTrunkModal'));
+    modal.show();
+}
+
+// Confirm Delete Trunk
+function confirmDeleteTrunk(trunkId, trunkName) {
+    document.getElementById('delete_sip_trunk_id').value = trunkId;
+    document.getElementById('delete_trunk_name').textContent = trunkName;
+    
+    var modal = new bootstrap.Modal(document.getElementById('deleteTrunkModal'));
+    modal.show();
+}
+
+// Edit Rule
+function editRule(ruleId, name, trunkIds, roomName, pin, hidePhoneNumber, metadata, agentName, agentMetadata) {
+    document.getElementById('edit_sip_dispatch_rule_id').value = ruleId;
+    document.getElementById('edit_rule_name').value = name;
+    document.getElementById('edit_trunk_ids').value = trunkIds;
+    document.getElementById('edit_room_name').value = roomName;
+    document.getElementById('edit_pin').value = pin;
+    document.getElementById('edit_hide_phone_number').checked = hidePhoneNumber;
+    document.getElementById('edit_agent_name').value = agentName || '';
+    document.getElementById('edit_agent_metadata').value = agentMetadata || '';
+    document.getElementById('edit_rule_metadata').value = metadata;
+    
+    var modal = new bootstrap.Modal(document.getElementById('editRuleModal'));
+    modal.show();
+}
+
+// Confirm Delete Rule
+function confirmDeleteRule(ruleId, ruleName) {
+    document.getElementById('delete_sip_dispatch_rule_id').value = ruleId;
+    document.getElementById('delete_rule_name').textContent = ruleName;
+    
+    var modal = new bootstrap.Modal(document.getElementById('deleteRuleModal'));
+    modal.show();
+}
+
+// Auto-dismiss flash messages after 5 seconds
+setTimeout(function() {
+    var alerts = document.querySelectorAll('.alert');
+    alerts.forEach(function(alert) {
+        var bsAlert = new bootstrap.Alert(alert);
+        bsAlert.close();
+    });
+}, 5000);
+</script>
+
+{% endblock %}

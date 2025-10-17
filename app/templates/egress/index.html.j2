@@ -1,0 +1,271 @@
+{% extends "base.html.j2" %}
+
+{% block title %}Egress - LiveKit Dashboard{% endblock %}
+
+{% block page_title %}Egress{% endblock %}
+
+{% block page_subtitle %}
+<p class="page-subtitle">Recording & Streaming Jobs</p>
+{% endblock %}
+
+{% block content %}
+<!-- Stats -->
+<div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+    <div class="stat-card">
+        <div class="stat-label">
+            <i class="bi bi-record-circle"></i> Total Egress Jobs
+        </div>
+        <div class="stat-value info">
+            {{ egress_jobs|length }}
+        </div>
+    </div>
+</div>
+
+<!-- Egress Jobs Table -->
+<div id="egress-table" hx-get="/egress?partial=1" hx-swap="outerHTML">
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="card-title">
+                <i class="bi bi-record-circle"></i> Egress Jobs
+            </h5>
+            <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#startEgressModal">
+                <i class="bi bi-plus-circle"></i> Start Egress
+            </button>
+        </div>
+        <div class="card-body">
+            {% if egress_jobs %}
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Egress ID</th>
+                            <th>Room</th>
+                            <th>Status</th>
+                            <th>Started</th>
+                            <th>Duration</th>
+                            <th>File</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for job in egress_jobs %}
+                        <tr>
+                            <td>
+                                <code style="color: var(--text-secondary); background-color: var(--bg-tertiary); padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-size: 0.8125rem;">
+                                    {{ job.egress_id[:16] }}...
+                                </code>
+                            </td>
+                            <td>
+                                <strong style="color: var(--text-primary);">{{ job.room_name or '-' }}</strong>
+                            </td>
+                            <td>
+                                {% if job.status == 'EGRESS_ACTIVE' %}
+                                <span class="badge badge-success">{{ job.status }}</span>
+                                {% elif job.status == 'EGRESS_COMPLETE' %}
+                                <span class="badge badge-primary">{{ job.status }}</span>
+                                {% else %}
+                                <span class="badge badge-warning">{{ job.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <small style="color: var(--text-secondary);">{{ job.started_at }}</small>
+                            </td>
+                            <td>
+                                {% if job.ended_at %}
+                                <span style="color: var(--text-secondary);">{{ ((job.ended_at - job.started_at) / 1000000000) | round(1) }}s</span>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if job.file_results %}
+                                    {% for file in job.file_results %}
+                                    <div style="margin-bottom: 0.5rem;">
+                                        <small style="color: var(--text-secondary);">{{ file.filename }}</small>
+                                        {% if file.download_url %}
+                                        <br><a href="{{ file.download_url }}" target="_blank" class="btn btn-sm btn-outline-primary" style="margin-top: 0.25rem;">
+                                            <i class="bi bi-download"></i> Download
+                                        </a>
+                                        {% endif %}
+                                    </div>
+                                    {% endfor %}
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if job.status == 'EGRESS_ACTIVE' %}
+                                <form method="post" action="/egress/{{ job.egress_id }}/stop" style="display: inline;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" 
+                                            onclick="return confirm('Stop this egress job?')">
+                                        <i class="bi bi-stop-circle"></i> Stop
+                                    </button>
+                                </form>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-state-icon">
+                    <i class="bi bi-record-circle"></i>
+                </div>
+                <div class="empty-state-title">No egress jobs</div>
+                <div class="empty-state-description">
+                    Start recording or streaming your LiveKit rooms by creating an egress job
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Start Egress Modal -->
+<div class="modal fade" id="startEgressModal" tabindex="-1" aria-labelledby="startEgressModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="startEgressModalLabel">Start Room Composite Egress</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="/egress/start" id="startEgressForm">
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <div class="form-group">
+                        <label for="room_name" class="form-label">Room Name *</label>
+                        <input type="text" class="form-control" id="room_name" name="room_name" 
+                               placeholder="my-room" required>
+                        <small class="text-muted">The LiveKit room to record</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="output_filename" class="form-label">Output Filename *</label>
+                        <input type="text" class="form-control" id="output_filename" name="output_filename" 
+                               placeholder="recording-{room}-{time}.mp4" required>
+                        <small class="text-muted">Supports placeholders: {room}, {time}</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="layout" class="form-label">Layout</label>
+                        <select class="form-select" id="layout" name="layout">
+                            <option value="grid" selected>Grid</option>
+                            <option value="speaker">Speaker</option>
+                            <option value="single-speaker">Single Speaker</option>
+                        </select>
+                        <small class="text-muted">How participants should be arranged in the recording</small>
+                    </div>
+                    <div class="form-group mb-0">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="audio_only" name="audio_only">
+                            <label class="form-check-label" for="audio_only">Audio Only</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="video_only" name="video_only">
+                            <label class="form-check-label" for="video_only">Video Only</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-record-circle"></i> Start Egress
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<style>
+/* Modal styling */
+#startEgressModal .modal-dialog {
+    max-width: 500px;
+}
+
+#startEgressModal .modal-content {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
+}
+
+#startEgressModal .modal-header {
+    border-bottom: 1px solid var(--border-color);
+    padding: 1.25rem 1.5rem;
+}
+
+#startEgressModal .modal-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+#startEgressModal .modal-body {
+    padding: 1.5rem;
+}
+
+#startEgressModal .modal-footer {
+    border-top: 1px solid var(--border-color);
+    padding: 1rem 1.5rem;
+    background-color: transparent;
+}
+
+#startEgressModal .form-group {
+    margin-bottom: 1.25rem;
+}
+
+#startEgressModal .form-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+#startEgressModal small {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    display: block;
+    margin-top: 0.25rem;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Start Egress Modal
+    const egressModalElement = document.getElementById('startEgressModal');
+    
+    if (egressModalElement) {
+        // Initialize Bootstrap modal
+        const egressModal = new bootstrap.Modal(egressModalElement, {
+            backdrop: true,
+            keyboard: true,
+            focus: true
+        });
+        
+        const egressForm = document.getElementById('startEgressForm');
+        
+        // Reset form when modal is closed
+        egressModalElement.addEventListener('hidden.bs.modal', function() {
+            if (egressForm) {
+                egressForm.reset();
+            }
+        });
+        
+        // Focus on first input when modal opens
+        egressModalElement.addEventListener('shown.bs.modal', function() {
+            const firstInput = egressForm.querySelector('input[name="room_name"]');
+            if (firstInput) {
+                firstInput.focus();
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
+

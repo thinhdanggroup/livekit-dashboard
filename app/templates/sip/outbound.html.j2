@@ -1,0 +1,1135 @@
+{% extends "base.html.j2" %}
+
+{% block title %}SIP Outbound Calls - LiveKit Dashboard{% endblock %}
+
+{% block page_title %}Telephony{% endblock %}
+
+{% block page_subtitle %}
+<p class="page-subtitle">Configuration - Outbound Calls</p>
+{% endblock %}
+
+{% block content %}
+<!-- Stats -->
+<div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+    <div class="stat-card">
+        <div class="stat-label">
+            <i class="bi bi-diagram-3"></i> Total Outbound Trunks
+        </div>
+        <div class="stat-value info">
+            {{ trunks|length }}
+        </div>
+    </div>
+</div>
+
+<!-- Outbound Trunks -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="card-title">
+            <i class="bi bi-telephone-outbound"></i> Outbound Trunks
+        </h5>
+        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createTrunkModal">
+            <i class="bi bi-plus-circle"></i> Create new trunk
+        </button>
+    </div>
+    <div class="card-body">
+        {% if trunks %}
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Trunk ID</th>
+                        <th>Trunk Name</th>
+                        <th>Numbers</th>
+                        <th>SIP URI</th>
+                        <th>Created At</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for trunk in trunks %}
+                    <tr>
+                        <td>
+                            <code style="color: var(--text-secondary); background-color: var(--bg-tertiary); padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-size: 0.8125rem;">
+                                {{ trunk.sip_trunk_id }}
+                            </code>
+                        </td>
+                        <td>
+                            <strong style="color: var(--text-primary);">{{ trunk.name or 'Unnamed' }}</strong>
+                        </td>
+                        <td>
+                            {% if trunk.numbers %}
+                                {% for number in trunk.numbers[:2] %}
+                                <span class="badge badge-secondary">{{ number }}</span>
+                                {% endfor %}
+                                {% if trunk.numbers|length > 2 %}
+                                <span class="text-muted">+{{ trunk.numbers|length - 2 }} more</span>
+                                {% endif %}
+                            {% else %}
+                            <span class="text-muted">No numbers</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <small class="text-secondary">{{ trunk.outbound_address or '-' }}</small>
+                        </td>
+                        <td>
+                            {{ trunk.created_at | default('-', true) }}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-primary btn-sm edit-trunk-btn" 
+                                        data-trunk-id="{{ trunk.sip_trunk_id }}"
+                                        data-trunk-name="{{ trunk.name or '' }}"
+                                        data-trunk-address="{{ trunk.address or trunk.outbound_address or '' }}"
+                                        data-trunk-transport="{% if trunk.transport %}{{ trunk.transport|string|lower }}{% else %}tcp{% endif %}"
+                                        data-trunk-numbers="{{ trunk.numbers|join(',') if trunk.numbers else '' }}"
+                                        data-trunk-auth-username="{{ trunk.auth_username or '' }}"
+                                        data-bs-toggle="modal" 
+                                        data-bs-target="#updateTrunkModal"
+                                        title="Edit trunk">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-danger btn-sm delete-trunk-btn" 
+                                        data-trunk-id="{{ trunk.sip_trunk_id }}"
+                                        data-trunk-name="{{ trunk.name or 'Unnamed trunk' }}"
+                                        data-bs-toggle="modal" 
+                                        data-bs-target="#deleteTrunkModal"
+                                        title="Delete trunk">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <i class="bi bi-telephone"></i>
+            </div>
+            <div class="empty-state-title">No outbound trunks configured</div>
+            <div class="empty-state-description">
+                Configure SIP trunks in your LiveKit server to enable outbound calls
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Create Call Button -->
+{% if trunks %}
+<div class="card">
+    <div class="card-header">
+        <h5 class="card-title">
+            <i class="bi bi-telephone-outbound"></i> Outbound Calls
+        </h5>
+    </div>
+    <div class="card-body">
+        <div class="d-flex justify-content-center align-items-center" style="padding: 2rem 0;">
+            <button type="button" class="btn btn-primary btn-lg" data-bs-toggle="modal" data-bs-target="#createCallModal">
+                <i class="bi bi-plus-circle"></i> Create Outbound Call
+            </button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Create Call Modal -->
+<div class="modal fade" id="createCallModal" tabindex="-1" aria-labelledby="createCallModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createCallModalLabel">Create Outbound Call</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="/sip-outbound" id="createCallForm">
+                <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <div class="form-group">
+                        <label for="sip_trunk_id" class="form-label">SIP Trunk *</label>
+                        <select class="form-select" id="sip_trunk_id" name="sip_trunk_id" required>
+                            <option value="">Select trunk...</option>
+                            {% for trunk in trunks %}
+                            <option value="{{ trunk.sip_trunk_id }}">{{ trunk.name or trunk.sip_trunk_id[:16] }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="sip_call_to" class="form-label">Phone Number *</label>
+                        <input type="text" class="form-control" id="sip_call_to" name="sip_call_to" 
+                               placeholder="+1234567890" required>
+                        <small class="text-muted">Include country code (e.g., +1 for US)</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="room_name" class="form-label">Room Name *</label>
+                        <input type="text" class="form-control" id="room_name" name="room_name" 
+                               placeholder="my-room" required>
+                        <small class="text-muted">The LiveKit room to connect the call to</small>
+                    </div>
+                    <div class="form-group mb-0">
+                        <label for="participant_identity" class="form-label">Participant Identity *</label>
+                        <input type="text" class="form-control" id="participant_identity" name="participant_identity" 
+                               placeholder="sip-caller-1" required>
+                        <small class="text-muted">Unique identifier for this participant</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-telephone-outbound"></i> Initiate Call
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Create Trunk Modal -->
+<div class="modal fade" id="createTrunkModal" tabindex="-1" aria-labelledby="createTrunkModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createTrunkModalLabel">Create a new trunk</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="/sip-outbound/trunk/create" id="createTrunkFormWrapper">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-body">
+                <!-- Tabs -->
+                <ul class="nav nav-tabs mb-3" id="trunkTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="details-tab" data-bs-toggle="tab" data-bs-target="#details" type="button" role="tab">
+                            TRUNK DETAILS
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="json-tab" data-bs-toggle="tab" data-bs-target="#json" type="button" role="tab">
+                            JSON EDITOR
+                        </button>
+                    </li>
+                </ul>
+
+                <!-- Tab Content -->
+                <div class="tab-content" id="trunkTabContent">
+                    <!-- Trunk Details Tab -->
+                    <div class="tab-pane fade show active" id="details" role="tabpanel">
+                        <div class="form-group">
+                                <label for="trunk_name" class="form-label">Trunk name</label>
+                                <input type="text" class="form-control" id="trunk_name" name="trunk_name" placeholder="My trunk">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Trunk direction</label>
+                                <div class="d-flex gap-2">
+                                    <div class="trunk-direction-option">
+                                        <input type="radio" class="btn-check" name="direction" id="direction_inbound" value="inbound">
+                                        <label class="btn btn-outline-secondary" for="direction_inbound">
+                                            <i class="bi bi-telephone-inbound"></i> Inbound
+                                        </label>
+                                    </div>
+                                    <div class="trunk-direction-option">
+                                        <input type="radio" class="btn-check" name="direction" id="direction_outbound" value="outbound" checked>
+                                        <label class="btn btn-outline-secondary" for="direction_outbound">
+                                            <i class="bi bi-telephone-outbound"></i> Outbound
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="address" class="form-label">
+                                    Address
+                                    <i class="bi bi-info-circle text-muted" title="SIP server address"></i>
+                                </label>
+                                <input type="text" class="form-control" id="address" name="address" placeholder="192.0.2.0">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="transport" class="form-label">
+                                    Transport
+                                    <i class="bi bi-info-circle text-muted" title="Transport protocol"></i>
+                                </label>
+                                <select class="form-select" id="transport" name="transport">
+                                    <option value="tcp">TCP</option>
+                                    <option value="udp">UDP</option>
+                                    <option value="tls">TLS</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="numbers" class="form-label">
+                                    Numbers
+                                    <i class="bi bi-info-circle text-muted" title="Phone numbers for this trunk"></i>
+                                </label>
+                                <input type="text" class="form-control" id="numbers" name="numbers" placeholder="+18005550123,+18005550124">
+                                <small class="text-muted">Comma-separated list of phone numbers</small>
+                            </div>
+
+                            <!-- Optional Settings -->
+                            <div class="optional-settings">
+                                <button class="btn btn-link text-secondary p-0 mb-2" type="button" data-bs-toggle="collapse" data-bs-target="#optionalSettings" aria-expanded="false" aria-controls="optionalSettings">
+                                    <i class="bi bi-chevron-right"></i> Optional settings
+                                </button>
+                                
+                                <div class="collapse" id="optionalSettings">
+                                    <div class="form-group">
+                                        <label for="username" class="form-label">
+                                            Username
+                                            <i class="bi bi-info-circle text-muted" title="SIP authentication username"></i>
+                                        </label>
+                                        <input type="text" class="form-control" id="username" name="username" placeholder="Username">
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="password" class="form-label">
+                                            Password
+                                            <i class="bi bi-info-circle text-muted" title="SIP authentication password"></i>
+                                        </label>
+                                        <input type="password" class="form-control" id="password" name="password" placeholder="Strong_password">
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="destination_country" class="form-label">
+                                            Destination Country (Region Pinning)
+                                            <i class="bi bi-info-circle text-muted" title="Two-letter country code to originate calls from the same region"></i>
+                                        </label>
+                                        <input type="text" class="form-control" id="destination_country" name="destination_country" placeholder="US" maxlength="2" pattern="[A-Z]{2}">
+                                        <small class="text-muted">Two-letter country code (e.g., US, GB, AU) - calls will originate from this region</small>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="metadata" class="form-label">
+                                            Metadata
+                                            <i class="bi bi-info-circle text-muted" title="Custom metadata as JSON string"></i>
+                                        </label>
+                                        <textarea class="form-control font-monospace" id="metadata" name="metadata" rows="3" placeholder='{"key": "value"}'></textarea>
+                                        <small class="text-muted">Custom metadata as JSON object</small>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="headers" class="form-label">
+                                            Custom SIP Headers
+                                            <i class="bi bi-info-circle text-muted" title="Custom headers to include in SIP INVITE"></i>
+                                        </label>
+                                        <textarea class="form-control font-monospace" id="headers" name="headers" rows="3" placeholder='{"X-Custom-Header": "value"}'></textarea>
+                                        <small class="text-muted">Custom SIP headers as JSON object (e.g., {"X-Custom": "value"})</small>
+                                    </div>
+
+                                    <div class="form-group mb-0">
+                                        <label for="headers_to_attributes" class="form-label">
+                                            Headers to Attributes Mapping
+                                            <i class="bi bi-info-circle text-muted" title="Map SIP headers to participant attributes"></i>
+                                        </label>
+                                        <textarea class="form-control font-monospace" id="headers_to_attributes" name="headers_to_attributes" rows="3" placeholder='{"X-User-ID": "user_id"}'></textarea>
+                                        <small class="text-muted">Map incoming SIP headers to participant attributes</small>
+                                    </div>
+                                </div>
+                            </div>
+                    </div>
+
+                    <!-- JSON Editor Tab -->
+                    <div class="tab-pane fade" id="json" role="tabpanel">
+                        <div class="form-group mb-0">
+                            <textarea class="form-control font-monospace" id="create_json_editor" name="json_data" rows="12" placeholder='{
+  "name": "My trunk",
+  "direction": "outbound",
+  "address": "192.0.2.0",
+  "transport": "tcp",
+  "numbers": ["+18005550123"]
+}'></textarea>
+                        </div>
+                        <small class="text-muted d-block mt-2">
+                            <i class="bi bi-book"></i> Learn more in the 
+                            <a href="https://docs.livekit.io/sip" target="_blank" class="text-info">docs</a>
+                        </small>
+                    </div>
+                </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Create
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Update Trunk Modal -->
+<div class="modal fade" id="updateTrunkModal" tabindex="-1" aria-labelledby="updateTrunkModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="updateTrunkModalLabel">Update trunk</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="/sip-outbound/trunk/update" id="updateTrunkForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="sip_trunk_id" id="update_sip_trunk_id">
+                <div class="modal-body">
+                    <!-- Tabs -->
+                    <ul class="nav nav-tabs mb-3" id="updateTrunkTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="update-details-tab" data-bs-toggle="tab" data-bs-target="#update-details" type="button" role="tab">
+                                TRUNK DETAILS
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="update-json-tab" data-bs-toggle="tab" data-bs-target="#update-json" type="button" role="tab">
+                                JSON EDITOR
+                            </button>
+                        </li>
+                    </ul>
+
+                    <!-- Tab Content -->
+                    <div class="tab-content" id="updateTrunkTabContent">
+                        <!-- Trunk Details Tab -->
+                        <div class="tab-pane fade show active" id="update-details" role="tabpanel">
+                            <div class="form-group">
+                                <label for="update_trunk_name" class="form-label">Trunk name</label>
+                                <input type="text" class="form-control" id="update_trunk_name" name="trunk_name" placeholder="My trunk">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="update_address" class="form-label">
+                                    Address
+                                    <i class="bi bi-info-circle text-muted" title="SIP server address"></i>
+                                </label>
+                                <input type="text" class="form-control" id="update_address" name="address" placeholder="192.0.2.0">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="update_transport" class="form-label">
+                                    Transport
+                                    <i class="bi bi-info-circle text-muted" title="Transport protocol"></i>
+                                </label>
+                                <select class="form-select" id="update_transport" name="transport">
+                                    <option value="tcp">TCP</option>
+                                    <option value="udp">UDP</option>
+                                    <option value="tls">TLS</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="update_numbers" class="form-label">
+                                    Numbers
+                                    <i class="bi bi-info-circle text-muted" title="Phone numbers for this trunk"></i>
+                                </label>
+                                <input type="text" class="form-control" id="update_numbers" name="numbers" placeholder="+18005550123,+18005550124">
+                                <small class="text-muted">Comma-separated list of phone numbers</small>
+                            </div>
+
+                            <!-- Optional Settings -->
+                            <div class="optional-settings">
+                                <button class="btn btn-link text-secondary p-0 mb-2" type="button" data-bs-toggle="collapse" data-bs-target="#updateOptionalSettings" aria-expanded="false" aria-controls="updateOptionalSettings">
+                                    <i class="bi bi-chevron-right"></i> Optional settings
+                                </button>
+                                
+                                <div class="collapse" id="updateOptionalSettings">
+                                    <div class="form-group">
+                                        <label for="update_username" class="form-label">
+                                            Username
+                                            <i class="bi bi-info-circle text-muted" title="SIP authentication username"></i>
+                                        </label>
+                                        <input type="text" class="form-control" id="update_username" name="username" placeholder="Username">
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="update_password" class="form-label">
+                                            Password
+                                            <i class="bi bi-info-circle text-muted" title="SIP authentication password"></i>
+                                        </label>
+                                        <input type="password" class="form-control" id="update_password" name="password" placeholder="Strong_password">
+                                        <small class="text-muted">Leave blank to keep existing password</small>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="update_destination_country" class="form-label">
+                                            Destination Country (Region Pinning)
+                                            <i class="bi bi-info-circle text-muted" title="Two-letter country code to originate calls from the same region"></i>
+                                        </label>
+                                        <input type="text" class="form-control" id="update_destination_country" name="destination_country" placeholder="US" maxlength="2" pattern="[A-Z]{2}">
+                                        <small class="text-muted">Two-letter country code (e.g., US, GB, AU) - calls will originate from this region</small>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="update_metadata" class="form-label">
+                                            Metadata
+                                            <i class="bi bi-info-circle text-muted" title="Custom metadata as JSON string"></i>
+                                        </label>
+                                        <textarea class="form-control font-monospace" id="update_metadata" name="metadata" rows="3" placeholder='{"key": "value"}'></textarea>
+                                        <small class="text-muted">Custom metadata as JSON object</small>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="update_headers" class="form-label">
+                                            Custom SIP Headers
+                                            <i class="bi bi-info-circle text-muted" title="Custom headers to include in SIP INVITE"></i>
+                                        </label>
+                                        <textarea class="form-control font-monospace" id="update_headers" name="headers" rows="3" placeholder='{"X-Custom-Header": "value"}'></textarea>
+                                        <small class="text-muted">Custom SIP headers as JSON object (e.g., {"X-Custom": "value"})</small>
+                                    </div>
+
+                                    <div class="form-group mb-0">
+                                        <label for="update_headers_to_attributes" class="form-label">
+                                            Headers to Attributes Mapping
+                                            <i class="bi bi-info-circle text-muted" title="Map SIP headers to participant attributes"></i>
+                                        </label>
+                                        <textarea class="form-control font-monospace" id="update_headers_to_attributes" name="headers_to_attributes" rows="3" placeholder='{"X-User-ID": "user_id"}'></textarea>
+                                        <small class="text-muted">Map incoming SIP headers to participant attributes</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- JSON Editor Tab -->
+                        <div class="tab-pane fade" id="update-json" role="tabpanel">
+                            <div class="form-group mb-0">
+                                <textarea class="form-control font-monospace" id="update_json_editor" name="json_data" rows="12"></textarea>
+                            </div>
+                            <small class="text-muted d-block mt-2">
+                                <i class="bi bi-book"></i> Learn more in the 
+                                <a href="https://docs.livekit.io/sip" target="_blank" class="text-info">docs</a>
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle"></i> Update
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Trunk Modal -->
+<div class="modal fade" id="deleteTrunkModal" tabindex="-1" aria-labelledby="deleteTrunkModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteTrunkModalLabel">Delete trunk</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="/sip-outbound/trunk/delete" id="deleteTrunkForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="sip_trunk_id" id="delete_sip_trunk_id">
+                <div class="modal-body">
+                    <div class="alert alert-warning d-flex align-items-start" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill me-2 mt-1"></i>
+                        <div>
+                            <strong>Warning:</strong> This action cannot be undone.
+                        </div>
+                    </div>
+                    <p>Are you sure you want to delete the trunk <strong id="delete_trunk_name"></strong>?</p>
+                    <p class="text-muted mb-0">All associated configurations will be permanently removed.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash"></i> Delete
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<style>
+/* Custom styles for modals */
+#createTrunkModal .modal-dialog,
+#updateTrunkModal .modal-dialog {
+    max-width: 600px;
+}
+
+#createCallModal .modal-dialog,
+#deleteTrunkModal .modal-dialog {
+    max-width: 500px;
+}
+
+/* Shared modal styles */
+#createTrunkModal .modal-content,
+#updateTrunkModal .modal-content,
+#createCallModal .modal-content,
+#deleteTrunkModal .modal-content {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
+}
+
+#createTrunkModal .modal-header,
+#updateTrunkModal .modal-header,
+#createCallModal .modal-header,
+#deleteTrunkModal .modal-header {
+    border-bottom: 1px solid var(--border-color);
+    padding: 1.25rem 1.5rem;
+}
+
+#createTrunkModal .modal-title,
+#updateTrunkModal .modal-title,
+#createCallModal .modal-title,
+#deleteTrunkModal .modal-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+#createTrunkModal .modal-body,
+#updateTrunkModal .modal-body,
+#createCallModal .modal-body,
+#deleteTrunkModal .modal-body {
+    padding: 1.5rem;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+#createTrunkModal .modal-footer,
+#updateTrunkModal .modal-footer,
+#createCallModal .modal-footer,
+#deleteTrunkModal .modal-footer {
+    border-top: 1px solid var(--border-color);
+    padding: 1rem 1.5rem;
+    background-color: transparent;
+}
+
+/* Scrollbar styling for modal body */
+#createTrunkModal .modal-body::-webkit-scrollbar,
+#updateTrunkModal .modal-body::-webkit-scrollbar,
+#createCallModal .modal-body::-webkit-scrollbar,
+#deleteTrunkModal .modal-body::-webkit-scrollbar {
+    width: 8px;
+}
+
+#createTrunkModal .modal-body::-webkit-scrollbar-track,
+#updateTrunkModal .modal-body::-webkit-scrollbar-track,
+#createCallModal .modal-body::-webkit-scrollbar-track,
+#deleteTrunkModal .modal-body::-webkit-scrollbar-track {
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+}
+
+#createTrunkModal .modal-body::-webkit-scrollbar-thumb,
+#updateTrunkModal .modal-body::-webkit-scrollbar-thumb,
+#createCallModal .modal-body::-webkit-scrollbar-thumb,
+#deleteTrunkModal .modal-body::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+#createTrunkModal .modal-body::-webkit-scrollbar-thumb:hover,
+#updateTrunkModal .modal-body::-webkit-scrollbar-thumb:hover,
+#createCallModal .modal-body::-webkit-scrollbar-thumb:hover,
+#deleteTrunkModal .modal-body::-webkit-scrollbar-thumb:hover {
+    background: var(--border-hover);
+}
+
+/* Tabs styling */
+.nav-tabs {
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 1.5rem;
+}
+
+.nav-tabs .nav-link {
+    color: var(--text-secondary);
+    border: none;
+    background: transparent;
+    padding: 0.75rem 1rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.nav-tabs .nav-link:hover {
+    color: var(--text-primary);
+    border: none;
+}
+
+.nav-tabs .nav-link.active {
+    color: var(--brand-primary);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid var(--brand-primary);
+}
+
+/* Radio button styling */
+.trunk-direction-option {
+    flex: 1;
+}
+
+.trunk-direction-option .btn {
+    width: 100%;
+}
+
+.btn-check {
+    position: absolute;
+    clip: rect(0,0,0,0);
+    pointer-events: none;
+}
+
+.btn-check:checked + .btn-outline-secondary {
+    background-color: rgba(91, 139, 255, 0.2);
+    border-color: var(--brand-primary);
+    color: var(--brand-primary);
+}
+
+.btn-outline-secondary {
+    color: var(--text-secondary);
+    border-color: var(--border-color);
+    background-color: transparent;
+}
+
+.btn-outline-secondary:hover {
+    color: var(--text-primary);
+    border-color: var(--border-hover);
+    background-color: var(--bg-hover);
+}
+
+/* Optional settings */
+.optional-settings .btn-link {
+    text-decoration: none;
+    font-size: 0.875rem;
+    padding: 0;
+}
+
+.optional-settings .btn-link:hover {
+    color: var(--text-primary) !important;
+}
+
+.optional-settings .btn-link i {
+    transition: transform 0.2s;
+}
+
+.optional-settings .btn-link[aria-expanded="true"] i.bi-chevron-right {
+    transform: rotate(90deg);
+}
+
+.optional-settings .btn-link[aria-expanded="false"] i.bi-chevron-right {
+    transform: rotate(0deg);
+}
+
+/* Form styling within modals */
+#createTrunkModal .form-group,
+#createCallModal .form-group {
+    margin-bottom: 1.25rem;
+}
+
+#createTrunkModal .form-label,
+#createCallModal .form-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+#createTrunkModal .form-label i,
+#createCallModal .form-label i {
+    font-size: 0.875rem;
+    cursor: help;
+}
+
+#createTrunkModal small,
+#createCallModal small {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+}
+
+/* JSON editor styling */
+.font-monospace {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Courier New', monospace;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+}
+
+#createTrunkModal textarea.font-monospace {
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+}
+
+/* Link styling */
+#createTrunkModal a {
+    color: var(--brand-primary);
+    text-decoration: none;
+}
+
+#createTrunkModal a:hover {
+    text-decoration: underline;
+}
+
+/* Action buttons styling */
+.btn-group-sm .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+.btn-outline-primary {
+    color: var(--brand-primary);
+    border-color: var(--border-color);
+}
+
+.btn-outline-primary:hover {
+    color: #fff;
+    background-color: var(--brand-primary);
+    border-color: var(--brand-primary);
+}
+
+.btn-outline-danger {
+    color: #dc3545;
+    border-color: var(--border-color);
+}
+
+.btn-outline-danger:hover {
+    color: #fff;
+    background-color: #dc3545;
+    border-color: #dc3545;
+}
+
+/* Alert styling for delete modal */
+#deleteTrunkModal .alert-warning {
+    background-color: rgba(255, 193, 7, 0.1);
+    border: 1px solid rgba(255, 193, 7, 0.3);
+    color: var(--text-primary);
+}
+
+#deleteTrunkModal .alert-warning i {
+    color: #ffc107;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Create Trunk Modal
+    const trunkModalElement = document.getElementById('createTrunkModal');
+    
+    if (trunkModalElement) {
+        // Initialize Bootstrap modal
+        const trunkModal = new bootstrap.Modal(trunkModalElement, {
+            backdrop: true,
+            keyboard: true,
+            focus: true
+        });
+        
+        // Handle optional settings toggle
+        const optionalSettingsButton = document.querySelector('[data-bs-target="#optionalSettings"]');
+        if (optionalSettingsButton) {
+            optionalSettingsButton.addEventListener('click', function() {
+                const icon = this.querySelector('i.bi-chevron-right');
+                const isExpanded = this.getAttribute('aria-expanded') === 'true';
+                
+                // Update icon rotation
+                if (icon) {
+                    if (isExpanded) {
+                        icon.style.transform = 'rotate(0deg)';
+                    } else {
+                        icon.style.transform = 'rotate(90deg)';
+                    }
+                }
+                
+                // Toggle aria-expanded
+                this.setAttribute('aria-expanded', !isExpanded);
+            });
+        }
+        
+        // Handle form tab switching - sync form data
+        const detailsTab = document.getElementById('details-tab');
+        const jsonTab = document.getElementById('json-tab');
+        const jsonTextarea = document.getElementById('create_json_editor');
+        const trunkForm = document.getElementById('createTrunkFormWrapper');
+        
+        // When switching to JSON tab, populate JSON from form
+        if (jsonTab && trunkForm && jsonTextarea) {
+            jsonTab.addEventListener('click', function() {
+                try {
+                    const formData = {
+                        name: trunkForm.trunk_name.value || undefined,
+                        direction: trunkForm.direction.value,
+                        address: trunkForm.address.value || undefined,
+                        transport: trunkForm.transport.value || undefined,
+                        numbers: trunkForm.numbers.value ? trunkForm.numbers.value.split(',').map(n => n.trim()) : undefined,
+                        auth_username: trunkForm.username.value || undefined,
+                        auth_password: trunkForm.password.value || undefined,
+                        destination_country: trunkForm.destination_country.value || undefined,
+                        metadata: trunkForm.metadata.value || undefined
+                    };
+                    
+                    // Parse JSON fields
+                    if (trunkForm.headers.value) {
+                        try {
+                            formData.headers = JSON.parse(trunkForm.headers.value);
+                        } catch (e) {
+                            console.warn('Invalid JSON in headers field');
+                        }
+                    }
+                    
+                    if (trunkForm.headers_to_attributes.value) {
+                        try {
+                            formData.headers_to_attributes = JSON.parse(trunkForm.headers_to_attributes.value);
+                        } catch (e) {
+                            console.warn('Invalid JSON in headers_to_attributes field');
+                        }
+                    }
+                    
+                    // Remove undefined values
+                    Object.keys(formData).forEach(key => formData[key] === undefined && delete formData[key]);
+                    
+                    jsonTextarea.value = JSON.stringify(formData, null, 2);
+                } catch (e) {
+                    console.error('Error generating JSON:', e);
+                }
+            });
+        }
+        
+        // Reset form when modal is closed
+        trunkModalElement.addEventListener('hidden.bs.modal', function() {
+            if (trunkForm) {
+                trunkForm.reset();
+            }
+            if (jsonTextarea) {
+                jsonTextarea.value = '';
+            }
+            
+            // Reset to first tab
+            const firstTab = document.getElementById('details-tab');
+            if (firstTab) {
+                const tab = new bootstrap.Tab(firstTab);
+                tab.show();
+            }
+            
+            // Collapse optional settings
+            const optionalSettings = document.getElementById('optionalSettings');
+            if (optionalSettings && optionalSettings.classList.contains('show')) {
+                const collapseInstance = bootstrap.Collapse.getInstance(optionalSettings);
+                if (collapseInstance) {
+                    collapseInstance.hide();
+                }
+            }
+        });
+    }
+    
+    // Initialize Create Call Modal
+    const callModalElement = document.getElementById('createCallModal');
+    
+    if (callModalElement) {
+        // Initialize Bootstrap modal
+        const callModal = new bootstrap.Modal(callModalElement, {
+            backdrop: true,
+            keyboard: true,
+            focus: true
+        });
+        
+        const callForm = document.getElementById('createCallForm');
+        
+        // Reset form when modal is closed
+        callModalElement.addEventListener('hidden.bs.modal', function() {
+            if (callForm) {
+                callForm.reset();
+            }
+        });
+        
+        // Optional: Focus on first input when modal opens
+        callModalElement.addEventListener('shown.bs.modal', function() {
+            const firstInput = callForm.querySelector('select[name="sip_trunk_id"]');
+            if (firstInput) {
+                firstInput.focus();
+            }
+        });
+    }
+    
+    // Initialize Update Trunk Modal
+    const updateTrunkModalElement = document.getElementById('updateTrunkModal');
+    
+    if (updateTrunkModalElement) {
+        // Initialize Bootstrap modal
+        const updateTrunkModal = new bootstrap.Modal(updateTrunkModalElement, {
+            backdrop: true,
+            keyboard: true,
+            focus: true
+        });
+        
+        // Handle edit button clicks
+        document.querySelectorAll('.edit-trunk-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const trunkId = this.getAttribute('data-trunk-id');
+                const trunkName = this.getAttribute('data-trunk-name');
+                const trunkAddress = this.getAttribute('data-trunk-address');
+                let trunkTransport = this.getAttribute('data-trunk-transport');
+                const trunkNumbers = this.getAttribute('data-trunk-numbers');
+                const trunkAuthUsername = this.getAttribute('data-trunk-auth-username');
+                
+                // Normalize transport value (handle enum values like SIP_TRANSPORT_TCP)
+                if (trunkTransport) {
+                    trunkTransport = trunkTransport.toLowerCase()
+                        .replace('sip_transport_', '')
+                        .replace('auto', 'tcp');
+                } else {
+                    trunkTransport = 'tcp';
+                }
+                
+                console.log('Populating update form with:', {
+                    trunkId, trunkName, trunkAddress, trunkTransport, trunkNumbers, trunkAuthUsername
+                });
+                
+                // Populate form fields
+                document.getElementById('update_sip_trunk_id').value = trunkId || '';
+                document.getElementById('update_trunk_name').value = trunkName || '';
+                document.getElementById('update_address').value = trunkAddress || '';
+                document.getElementById('update_transport').value = trunkTransport;
+                document.getElementById('update_numbers').value = trunkNumbers || '';
+                document.getElementById('update_username').value = trunkAuthUsername || '';
+                
+                // Clear password field
+                document.getElementById('update_password').value = '';
+            });
+        });
+        
+        // Handle optional settings toggle for update modal
+        const updateOptionalSettingsButton = document.querySelector('[data-bs-target="#updateOptionalSettings"]');
+        if (updateOptionalSettingsButton) {
+            updateOptionalSettingsButton.addEventListener('click', function() {
+                const icon = this.querySelector('i.bi-chevron-right');
+                const isExpanded = this.getAttribute('aria-expanded') === 'true';
+                
+                // Update icon rotation
+                if (icon) {
+                    if (isExpanded) {
+                        icon.style.transform = 'rotate(0deg)';
+                    } else {
+                        icon.style.transform = 'rotate(90deg)';
+                    }
+                }
+                
+                // Toggle aria-expanded
+                this.setAttribute('aria-expanded', !isExpanded);
+            });
+        }
+        
+        // Handle form tab switching - sync form data for update modal
+        const updateDetailsTab = document.getElementById('update-details-tab');
+        const updateJsonTab = document.getElementById('update-json-tab');
+        const updateJsonTextarea = document.getElementById('update_json_editor');
+        const updateTrunkForm = document.getElementById('updateTrunkForm');
+        
+        // When switching to JSON tab, populate JSON from form
+        if (updateJsonTab && updateTrunkForm && updateJsonTextarea) {
+            updateJsonTab.addEventListener('click', function() {
+                try {
+                    const formData = {
+                        sip_trunk_id: document.getElementById('update_sip_trunk_id').value,
+                        name: document.getElementById('update_trunk_name').value || undefined,
+                        address: document.getElementById('update_address').value || undefined,
+                        transport: document.getElementById('update_transport').value || undefined,
+                        numbers: document.getElementById('update_numbers').value ? 
+                            document.getElementById('update_numbers').value.split(',').map(n => n.trim()) : undefined,
+                        auth_username: document.getElementById('update_username').value || undefined,
+                        destination_country: document.getElementById('update_destination_country').value || undefined,
+                        metadata: document.getElementById('update_metadata').value || undefined
+                    };
+                    
+                    // Only include password if it's not empty
+                    const password = document.getElementById('update_password').value;
+                    if (password) {
+                        formData.auth_password = password;
+                    }
+                    
+                    // Parse JSON fields
+                    const headersValue = document.getElementById('update_headers').value;
+                    if (headersValue) {
+                        try {
+                            formData.headers = JSON.parse(headersValue);
+                        } catch (e) {
+                            console.warn('Invalid JSON in headers field');
+                        }
+                    }
+                    
+                    const headersToAttrsValue = document.getElementById('update_headers_to_attributes').value;
+                    if (headersToAttrsValue) {
+                        try {
+                            formData.headers_to_attributes = JSON.parse(headersToAttrsValue);
+                        } catch (e) {
+                            console.warn('Invalid JSON in headers_to_attributes field');
+                        }
+                    }
+                    
+                    // Remove undefined values
+                    Object.keys(formData).forEach(key => formData[key] === undefined && delete formData[key]);
+                    
+                    updateJsonTextarea.value = JSON.stringify(formData, null, 2);
+                } catch (e) {
+                    console.error('Error generating JSON:', e);
+                }
+            });
+        }
+        
+        // Reset form when modal is closed
+        updateTrunkModalElement.addEventListener('hidden.bs.modal', function() {
+            if (updateTrunkForm) {
+                updateTrunkForm.reset();
+            }
+            if (updateJsonTextarea) {
+                updateJsonTextarea.value = '';
+            }
+            
+            // Reset to first tab
+            const firstTab = document.getElementById('update-details-tab');
+            if (firstTab) {
+                const tab = new bootstrap.Tab(firstTab);
+                tab.show();
+            }
+            
+            // Collapse optional settings
+            const updateOptionalSettings = document.getElementById('updateOptionalSettings');
+            if (updateOptionalSettings && updateOptionalSettings.classList.contains('show')) {
+                const collapseInstance = bootstrap.Collapse.getInstance(updateOptionalSettings);
+                if (collapseInstance) {
+                    collapseInstance.hide();
+                }
+            }
+        });
+    }
+    
+    // Initialize Delete Trunk Modal
+    const deleteTrunkModalElement = document.getElementById('deleteTrunkModal');
+    
+    if (deleteTrunkModalElement) {
+        // Initialize Bootstrap modal
+        const deleteTrunkModal = new bootstrap.Modal(deleteTrunkModalElement, {
+            backdrop: true,
+            keyboard: true,
+            focus: true
+        });
+        
+        // Handle delete button clicks
+        document.querySelectorAll('.delete-trunk-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const trunkId = this.getAttribute('data-trunk-id');
+                const trunkName = this.getAttribute('data-trunk-name');
+                
+                // Populate modal
+                document.getElementById('delete_sip_trunk_id').value = trunkId;
+                document.getElementById('delete_trunk_name').textContent = trunkName;
+            });
+        });
+        
+        // Reset form when modal is closed
+        deleteTrunkModalElement.addEventListener('hidden.bs.modal', function() {
+            const deleteTrunkForm = document.getElementById('deleteTrunkForm');
+            if (deleteTrunkForm) {
+                deleteTrunkForm.reset();
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

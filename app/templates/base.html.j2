@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>{% block title %}LiveKit Dashboard{% endblock %}</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/css/style.css">
+    
+    <!-- HTMX CSRF Token Configuration -->
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+        <a href="/" class="sidebar-brand">
+            <i class="bi bi-broadcast"></i>
+            LiveKit
+        </a>
+        
+        <nav class="sidebar-nav">
+            <div class="nav-section">
+                <a href="/" class="nav-link {% if request.url.path == '/' %}active{% endif %}">
+                    <i class="bi bi-speedometer2"></i>
+                    Overview
+                </a>
+                <a href="/rooms" class="nav-link {% if '/rooms' in request.url.path %}active{% endif %}">
+                    <i class="bi bi-door-open"></i>
+                    Rooms
+                </a>
+                <a href="/egress" class="nav-link {% if '/egress' in request.url.path %}active{% endif %}">
+                    <i class="bi bi-record-circle"></i>
+                    Egress
+                </a>
+            </div>
+            
+            {% if sip_enabled %}
+            <div class="nav-section">
+                <div class="nav-section-title">Telephony</div>
+                <a href="/sip-outbound" class="nav-link {% if '/sip-outbound' in request.url.path %}active{% endif %}">
+                    <i class="bi bi-telephone-outbound"></i>
+                    Outbound Calls
+                </a>
+                <a href="/sip-inbound" class="nav-link {% if '/sip-inbound' in request.url.path %}active{% endif %}">
+                    <i class="bi bi-telephone-inbound"></i>
+                    Inbound Rules
+                </a>
+            </div>
+            {% endif %}
+            
+            <div class="nav-section">
+                <div class="nav-section-title">Tools</div>
+                <a href="/sandbox" class="nav-link {% if '/sandbox' in request.url.path %}active{% endif %}">
+                    <i class="bi bi-key"></i>
+                    Token Generator
+                </a>
+                <a href="/settings" class="nav-link {% if '/settings' in request.url.path %}active{% endif %}">
+                    <i class="bi bi-gear"></i>
+                    Settings
+                </a>
+            </div>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Top Bar -->
+        <div class="top-bar">
+            {% block page_header %}
+            <div>
+                <h1 class="page-title">{% block page_title %}Dashboard{% endblock %}</h1>
+                {% block page_subtitle %}{% endblock %}
+            </div>
+            {% endblock %}
+            <div class="top-bar-actions">
+                <div class="user-menu">
+                    <i class="bi bi-person-circle"></i>
+                    <span>{{ current_user or 'admin' }}</span>
+                </div>
+                <a href="/logout" class="btn btn-secondary btn-sm">
+                    <i class="bi bi-box-arrow-right"></i>
+                    Logout
+                </a>
+            </div>
+        </div>
+
+        <!-- Flash Messages -->
+        {% if flash_message %}
+        <div class="container mt-3">
+            <div class="alert alert-{{ flash_type or 'info' }}">
+                {{ flash_message }}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Page Content -->
+        <main>
+            {% block content %}{% endblock %}
+        </main>
+
+        <!-- Footer -->
+        <footer>
+            <small>LiveKit Dashboard &copy; 2025 | Stateless SSR Management</small>
+        </footer>
+    </div>
+
+    <!-- Bootstrap JS Bundle (includes Popper) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Custom JS -->
+    <script src="/static/js/main.js"></script>
+    
+    <!-- HTMX CSRF Configuration -->
+    <script>
+        // Configure HTMX to include CSRF token in all requests
+        document.body.addEventListener('htmx:configRequest', function(evt) {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+            evt.detail.parameters['csrf_token'] = csrfToken;
+        });
+    </script>
+    
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,172 @@
+{% extends "base.html.j2" %}
+
+{% block title %}Settings - LiveKit Dashboard{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="bi bi-gear"></i> Settings
+        </h1>
+    </div>
+</div>
+
+<!-- Server Configuration -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-server"></i> LiveKit Server</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tbody>
+                        <tr>
+                            <th width="40%">Server URL</th>
+                            <td><code>{{ config.livekit_url }}</code></td>
+                        </tr>
+                        <tr>
+                            <th>API Key</th>
+                            <td><code>{{ config.api_key_masked }}</code></td>
+                        </tr>
+                        <tr>
+                            <th>API Secret</th>
+                            <td><code>{{ config.api_secret_masked }}</code></td>
+                        </tr>
+                        <tr>
+                            <th>Connection Status</th>
+                            <td>
+                                <span class="badge bg-{% if config.status == 'healthy' %}success{% else %}danger{% endif %}">
+                                    {{ config.status|upper }}
+                                </span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-toggles"></i> Feature Flags</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tbody>
+                        <tr>
+                            <th width="40%">SIP Telephony</th>
+                            <td>
+                                {% if config.sip_enabled %}
+                                <span class="badge bg-success"><i class="bi bi-check-circle"></i> Enabled</span>
+                                {% else %}
+                                <span class="badge bg-secondary"><i class="bi bi-x-circle"></i> Disabled</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Debug Mode</th>
+                            <td>
+                                {% if config.debug %}
+                                <span class="badge bg-warning"><i class="bi bi-bug"></i> Enabled</span>
+                                {% else %}
+                                <span class="badge bg-success"><i class="bi bi-shield-check"></i> Disabled</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Application Info -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-info-circle"></i> Application</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tbody>
+                        <tr>
+                            <th width="40%">Version</th>
+                            <td>0.1.0</td>
+                        </tr>
+                        <tr>
+                            <th>Architecture</th>
+                            <td>Stateless SSR (FastAPI + Jinja2)</td>
+                        </tr>
+                        <tr>
+                            <th>Authentication</th>
+                            <td>HTTP Basic Auth</td>
+                        </tr>
+                        <tr>
+                            <th>Session Storage</th>
+                            <td>None (Stateless)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-shield-check"></i> Security</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tbody>
+                        <tr>
+                            <th width="40%">CSRF Protection</th>
+                            <td><span class="badge bg-success"><i class="bi bi-check-circle"></i> Enabled</span></td>
+                        </tr>
+                        <tr>
+                            <th>Secure Headers</th>
+                            <td><span class="badge bg-success"><i class="bi bi-check-circle"></i> Enabled</span></td>
+                        </tr>
+                        <tr>
+                            <th>HTTPS Only</th>
+                            <td>
+                                {% if 'https' in config.livekit_url %}
+                                <span class="badge bg-success"><i class="bi bi-lock"></i> Yes</span>
+                                {% else %}
+                                <span class="badge bg-warning"><i class="bi bi-exclamation-triangle"></i> No</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recommendations -->
+<div class="row">
+    <div class="col-12">
+        <div class="card border-info">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="bi bi-lightbulb"></i> Recommendations</h5>
+            </div>
+            <div class="card-body">
+                <ul class="mb-0">
+                    <li>Always use HTTPS in production environments</li>
+                    <li>Change default admin credentials (ADMIN_USERNAME, ADMIN_PASSWORD)</li>
+                    <li>Set a strong APP_SECRET_KEY for CSRF protection</li>
+                    <li>Enable security headers (HSTS, CSP) in production</li>
+                    <li>Monitor SDK latency on the Overview page</li>
+                    <li>Keep LiveKit server and SDK versions up to date</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+

@@ -1,0 +1,212 @@
+{% extends "base.html.j2" %}
+
+{% block title %}Room: {{ room.name }} - LiveKit Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-3">
+    <div class="col-md-6">
+        <h1>
+            <i class="bi bi-door-open"></i> {{ room.name }}
+        </h1>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/">Home</a></li>
+                <li class="breadcrumb-item"><a href="/rooms">Rooms</a></li>
+                <li class="breadcrumb-item active">{{ room.name }}</li>
+            </ol>
+        </nav>
+    </div>
+    <div class="col-md-6 text-end">
+        <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#tokenModal">
+            <i class="bi bi-key"></i> Generate Join Token
+        </button>
+        <button type="button" class="btn btn-danger" onclick="confirmDeleteRoom('{{ room.name }}')">
+            <i class="bi bi-trash"></i> Close Room
+        </button>
+    </div>
+</div>
+
+<!-- Room Info -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 text-muted">Participants</h6>
+                <p class="card-text display-6">{{ room.num_participants }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 text-muted">Max Participants</h6>
+                <p class="card-text display-6">{{ room.max_participants }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 text-muted">Created</h6>
+                <p class="card-text">{{ room.creation_time }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 text-muted">Empty Timeout</h6>
+                <p class="card-text">{{ room.empty_timeout }}s</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if room.metadata %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">Metadata</div>
+            <div class="card-body">
+                <pre class="mb-0">{{ room.metadata }}</pre>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Participants -->
+<div id="participants-section">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-people"></i> Participants ({{ participants|length }})
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if participants %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Identity</th>
+                                    <th>Name</th>
+                                    <th>State</th>
+                                    <th>Tracks</th>
+                                    <th>Joined</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for participant in participants %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ participant.identity }}</strong>
+                                        {% if participant.metadata %}
+                                        <br><small class="text-muted">{{ participant.metadata[:30] }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ participant.name or '-' }}</td>
+                                    <td>
+                                        <span class="badge bg-success">{{ participant.state }}</span>
+                                    </td>
+                                    <td>
+                                        {% for track in participant.tracks %}
+                                        <span class="badge bg-{% if track.type == 1 %}primary{% else %}info{% endif %}" title="{{ track.sid }}">
+                                            {% if track.type == 1 %}
+                                            <i class="bi bi-camera-video"></i> Video
+                                            {% else %}
+                                            <i class="bi bi-mic"></i> Audio
+                                            {% endif %}
+                                            {% if track.muted %}<i class="bi bi-slash-circle text-danger"></i>{% endif %}
+                                        </span>
+                                        {% endfor %}
+                                    </td>
+                                    <td>{{ participant.joined_at }}</td>
+                                    <td>
+                                        <form method="post" action="/rooms/{{ room.name }}/participants/{{ participant.identity }}/kick" style="display: inline;">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" 
+                                                    onclick="return confirm('Kick participant {{ participant.identity }}?')">
+                                                <i class="bi bi-person-x"></i> Kick
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> No participants in this room
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Generate Token Modal -->
+<div class="modal fade" id="tokenModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="post" action="/rooms/{{ room.name }}/token">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-header">
+                    <h5 class="modal-title">Generate Join Token</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="identity" class="form-label">Identity *</label>
+                        <input type="text" class="form-control" id="identity" name="identity" required 
+                               placeholder="unique-user-id">
+                    </div>
+                    <div class="mb-3">
+                        <label for="participant_name" class="form-label">Display Name</label>
+                        <input type="text" class="form-control" id="participant_name" name="participant_name" 
+                               placeholder="John Doe">
+                    </div>
+                    <div class="mb-3">
+                        <label for="ttl" class="form-label">TTL (seconds)</label>
+                        <input type="number" class="form-control" id="ttl" name="ttl" value="3600">
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="can_publish" name="can_publish" checked>
+                        <label class="form-check-label" for="can_publish">Can Publish</label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="can_subscribe" name="can_subscribe" checked>
+                        <label class="form-check-label" for="can_subscribe">Can Subscribe</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Generate Token</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Form -->
+<form id="deleteRoomForm" method="post" action="/rooms/{{ room.name }}/delete" style="display: none;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+</form>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function confirmDeleteRoom(roomName) {
+    if (confirm(`Are you sure you want to close room "${roomName}"?`)) {
+        document.getElementById('deleteRoomForm').submit();
+    }
+}
+</script>
+{% endblock %}
+

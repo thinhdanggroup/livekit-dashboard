@@ -1,0 +1,192 @@
+{% extends "base.html.j2" %}
+
+{% block title %}Token Generator - LiveKit Dashboard{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <h1 class="mb-4">
+            <i class="bi bi-key"></i> Token Generator Sandbox
+        </h1>
+
+        <div class="card">
+            <div class="card-body">
+                <p class="lead">
+                    Generate temporary join tokens for testing LiveKit client connections. 
+                    These tokens are created on-the-fly and never stored.
+                </p>
+
+                <form method="post" action="/sandbox/generate">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    
+                    <div class="mb-3">
+                        <label for="room" class="form-label">Room Name *</label>
+                        <input type="text" class="form-control" id="room" name="room" 
+                               value="{{ form_data.room or '' }}" required>
+                        <div class="form-text">The room the participant will join</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="identity" class="form-label">Identity *</label>
+                        <input type="text" class="form-control" id="identity" name="identity" 
+                               value="{{ form_data.identity or '' }}" required>
+                        <div class="form-text">Unique identifier for the participant</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Display Name</label>
+                        <input type="text" class="form-control" id="name" name="name" 
+                               value="{{ form_data.name or '' }}">
+                        <div class="form-text">Optional display name for the participant</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="ttl" class="form-label">Token TTL (seconds)</label>
+                        <input type="number" class="form-control" id="ttl" name="ttl" 
+                               value="{{ form_data.ttl or 3600 }}">
+                        <div class="form-text">How long the token is valid (default: 3600s = 1 hour)</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="metadata" class="form-label">Metadata (optional)</label>
+                        <textarea class="form-control" id="metadata" name="metadata" rows="2">{{ form_data.metadata or '' }}</textarea>
+                        <div class="form-text">Custom metadata attached to the participant</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Permissions</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="can_publish" name="can_publish" 
+                                   {% if form_data.can_publish is not defined or form_data.can_publish %}checked{% endif %}>
+                            <label class="form-check-label" for="can_publish">
+                                Can Publish (audio/video)
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="can_subscribe" name="can_subscribe"
+                                   {% if form_data.can_subscribe is not defined or form_data.can_subscribe %}checked{% endif %}>
+                            <label class="form-check-label" for="can_subscribe">
+                                Can Subscribe (receive streams)
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="can_publish_data" name="can_publish_data"
+                                   {% if form_data.can_publish_data is not defined or form_data.can_publish_data %}checked{% endif %}>
+                            <label class="form-check-label" for="can_publish_data">
+                                Can Publish Data
+                            </label>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-lg w-100">
+                        <i class="bi bi-key"></i> Generate Token
+                    </button>
+                </form>
+
+                {% if token %}
+                <hr class="my-4">
+                
+                <div class="alert alert-success">
+                    <h5 class="alert-heading"><i class="bi bi-check-circle"></i> Token Generated!</h5>
+                    <p>Your token has been generated successfully. Copy it below:</p>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">JWT Token</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control font-monospace" id="generatedToken" 
+                               value="{{ token }}" readonly>
+                        <button class="btn btn-outline-secondary" type="button" onclick="copyToken()">
+                            <i class="bi bi-clipboard"></i> Copy
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Quick Test URL</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control font-monospace" id="testUrl" 
+                               value="{{ test_url }}" readonly>
+                        <button class="btn btn-outline-secondary" type="button" onclick="copyUrl()">
+                            <i class="bi bi-clipboard"></i> Copy
+                        </button>
+                        <a href="{{ test_url }}" target="_blank" class="btn btn-primary">
+                            <i class="bi bi-box-arrow-up-right"></i> Open
+                        </a>
+                    </div>
+                    <div class="form-text">
+                        Use this URL to test the token in LiveKit's example app
+                    </div>
+                </div>
+
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <h6 class="card-title">Token Details</h6>
+                        <ul class="mb-0 small">
+                            <li><strong>Room:</strong> {{ form_data.room }}</li>
+                            <li><strong>Identity:</strong> {{ form_data.identity }}</li>
+                            <li><strong>Name:</strong> {{ form_data.name or form_data.identity }}</li>
+                            <li><strong>TTL:</strong> {{ form_data.ttl }}s</li>
+                            <li><strong>Can Publish:</strong> {{ 'Yes' if form_data.can_publish else 'No' }}</li>
+                            <li><strong>Can Subscribe:</strong> {{ 'Yes' if form_data.can_subscribe else 'No' }}</li>
+                        </ul>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- HMAC Verification Helper -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-shield-check"></i> Webhook HMAC Verification</h5>
+            </div>
+            <div class="card-body">
+                <p>Use this helper to verify webhook signatures from LiveKit.</p>
+                
+                <div class="mb-3">
+                    <label for="webhook_payload" class="form-label">Webhook Payload</label>
+                    <textarea class="form-control font-monospace" id="webhook_payload" rows="4" 
+                              placeholder='{"event": "room_started", "room": {...}}'></textarea>
+                </div>
+
+                <div class="mb-3">
+                    <label for="webhook_signature" class="form-label">Signature Header</label>
+                    <input type="text" class="form-control font-monospace" id="webhook_signature" 
+                           placeholder="sha256=...">
+                </div>
+
+                <button type="button" class="btn btn-secondary" onclick="verifyWebhook()">
+                    <i class="bi bi-check-circle"></i> Verify Signature
+                </button>
+
+                <div id="webhookResult" class="mt-3" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function copyToken() {
+    const tokenInput = document.getElementById('generatedToken');
+    tokenInput.select();
+    document.execCommand('copy');
+    alert('Token copied to clipboard!');
+}
+
+function copyUrl() {
+    const urlInput = document.getElementById('testUrl');
+    urlInput.select();
+    document.execCommand('copy');
+    alert('URL copied to clipboard!');
+}
+
+function verifyWebhook() {
+    alert('Webhook verification is a placeholder. Implement HMAC verification logic here.');
+}
+</script>
+{% endblock %}
+

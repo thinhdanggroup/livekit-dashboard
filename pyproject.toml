@@ -1,0 +1,44 @@
+[tool.poetry]
+name = "livekit-dashboard"
+version = "0.1.0"
+description = "Self-hosted SSR dashboard for LiveKit server management"
+authors = ["Your Name <your.email@example.com>"]
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.114.2"
+uvicorn = "^0.30.6"
+jinja2 = "^3.1.4"
+python-multipart = "^0.0.20"
+livekit = "^1.0.9"
+livekit-api = "^1.0.7"
+itsdangerous = "^2.1.2"
+python-dotenv = "^1.0.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.0"
+pytest-asyncio = "^0.21.0"
+black = "^24.0.0"
+ruff = "^0.1.0"
+mypy = "^1.8.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 100
+target-version = ['py310']
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+

@@ -1,0 +1,75 @@
+<!-- Rooms Table Partial for HTMX -->
+<div class="card" id="rooms-list">
+    <div class="card-body">
+        {% if rooms %}
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Room Name</th>
+                        <th>Participants</th>
+                        <th>Max Participants</th>
+                        <th>Created</th>
+                        <th>Empty Timeout</th>
+                        <th style="text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for room in rooms %}
+                    <tr>
+                        <td>
+                            <strong style="color: var(--text-primary);">{{ room.name }}</strong>
+                            {% if room.metadata %}
+                            <br><small class="text-muted">{{ room.metadata[:50] }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge {% if room.num_participants > 0 %}badge-success{% else %}badge-secondary{% endif %}">
+                                {{ room.num_participants }}
+                            </span>
+                        </td>
+                        <td>{{ room.max_participants }}</td>
+                        <td>{{ room.creation_time }}</td>
+                        <td>{{ room.empty_timeout }}s</td>
+                        <td style="text-align: right;">
+                            <div class="btn-group">
+                                <a href="/rooms/{{ room.name }}" class="btn btn-sm btn-secondary">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                <button type="button" class="btn btn-sm btn-danger" 
+                                        hx-post="/rooms/{{ room.name }}/delete" 
+                                        hx-target="#rooms-list" 
+                                        hx-swap="outerHTML"
+                                        hx-confirm="Are you sure you want to close room '{{ room.name }}'?">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <i class="bi bi-door-closed"></i>
+            </div>
+            <div class="empty-state-title">No rooms found</div>
+            <div class="empty-state-description">
+                {% if search %}
+                No rooms matching "{{ search }}"
+                {% else %}
+                Create your first room to get started
+                {% endif %}
+            </div>
+            {% if not search %}
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createRoomModal">
+                <i class="bi bi-plus-circle"></i> Create Room
+            </button>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
