@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Planned
+
 - WebSocket live updates for real-time room/participant changes
 - Advanced participant management features
 - Recording download management
@@ -20,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0] - 2025-01-XX
 
 ### Added
+
 - Initial release of LiveKit Dashboard
 - **Overview Dashboard**
   - Server status monitoring
@@ -89,6 +91,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Setup script for quick start
 
 ### Security
+
 - All routes require authentication except `/health` and `/logout`
 - CSRF tokens on all state-changing operations
 - Secure password comparison using `secrets.compare_digest`
@@ -96,6 +99,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - API secrets never exposed in full in UI
 
 ### Documentation
+
 - Comprehensive README with setup instructions
 - Docker deployment guide
 - Contributing guidelines
@@ -110,6 +114,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 This is the first release of LiveKit Dashboard, a stateless, self-hosted management interface for LiveKit servers.
 
 **Key Features:**
+
 - Complete room and participant management
 - Token generation and testing tools
 - Egress recording capabilities
@@ -119,6 +124,7 @@ This is the first release of LiveKit Dashboard, a stateless, self-hosted managem
 - Docker-ready deployment
 
 **Installation:**
+
 ```bash
 git clone <repository-url>
 cd livekit-dashboard
@@ -127,6 +133,7 @@ make dev
 ```
 
 **Requirements:**
+
 - Python 3.10+
 - LiveKit server instance
 - LiveKit API credentials
@@ -138,4 +145,3 @@ For detailed setup instructions, see [README.md](README.md).
 ## Version History
 
 - **0.1.0** (2025-01-XX) - Initial release
-

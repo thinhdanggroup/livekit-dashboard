@@ -492,30 +492,93 @@ textarea.form-control {
     border-radius: 0.375rem;
     margin-bottom: 1rem;
     border-left: 4px solid;
+    background-color: var(--bg-card);
+    color: var(--text-primary) !important;
 }
 
 .alert-info {
     background-color: rgba(59, 130, 246, 0.1);
     border-left-color: var(--info);
-    color: var(--info);
+    color: var(--info) !important;
 }
 
 .alert-success {
     background-color: rgba(34, 197, 94, 0.1);
     border-left-color: var(--success);
-    color: var(--success);
+    color: var(--success) !important;
 }
 
 .alert-warning {
     background-color: rgba(245, 158, 11, 0.1);
     border-left-color: var(--warning);
-    color: var(--warning);
+    color: var(--warning) !important;
 }
 
-.alert-danger {
+.alert-danger, .alert-error {
     background-color: rgba(239, 68, 68, 0.1);
     border-left-color: var(--danger);
-    color: var(--danger);
+    color: var(--danger) !important;
+}
+
+/* Recommendation/Failure Messages */
+.recommendation-box, .message-box {
+    padding: 1rem;
+    border-radius: 0.375rem;
+    margin-bottom: 1rem;
+    border-left: 4px solid var(--info);
+    background-color: rgba(59, 130, 246, 0.1);
+    color: var(--text-primary) !important;
+}
+
+.recommendation-box h3, .recommendation-box h4, .recommendation-box h5,
+.message-box h3, .message-box h4, .message-box h5 {
+    color: var(--info) !important;
+    margin-bottom: 0.75rem;
+}
+
+.recommendation-box p, .recommendation-box div, .recommendation-box span,
+.message-box p, .message-box div, .message-box span {
+    color: var(--text-primary) !important;
+}
+
+.recommendation-box ul, .recommendation-box ol,
+.message-box ul, .message-box ol {
+    color: var(--text-primary) !important;
+}
+
+.recommendation-box li, .message-box li {
+    color: var(--text-primary) !important;
+    margin-bottom: 0.25rem;
+}
+
+.recommendation-box code, .message-box code {
+    background-color: var(--bg-tertiary);
+    color: var(--brand-primary);
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+}
+
+/* Failure/Error specific styling */
+.failure-message, .error-message {
+    background-color: rgba(239, 68, 68, 0.1);
+    border-left-color: var(--danger);
+    color: var(--text-primary) !important;
+}
+
+.failure-message h3, .failure-message h4, .failure-message h5,
+.error-message h3, .error-message h4, .error-message h5 {
+    color: var(--danger) !important;
+}
+
+/* Success message styling */
+.success-message {
+    background-color: rgba(34, 197, 94, 0.1);
+    border-left-color: var(--success);
+    color: var(--text-primary) !important;
+}
+
+.success-message h3, .success-message h4, .success-message h5 {
+    color: var(--success) !important;
 }
 
 /* Empty States */
@@ -589,6 +652,66 @@ footer {
 .text-danger { color: var(--danger) !important; }
 .text-warning { color: var(--warning) !important; }
 .text-info { color: var(--info) !important; }
+
+/* Force text color inheritance for common elements */
+p, div, span, h1, h2, h3, h4, h5, h6, li, td, th {
+    color: inherit;
+}
+
+/* Ensure all text inside cards/containers uses proper colors */
+.container, .container-fluid, .card, .alert, .modal-body {
+    color: var(--text-primary);
+}
+
+.container *, .container-fluid *, .card *, .alert *, .modal-body * {
+    color: inherit;
+}
+
+/* Fix for any black text issues in dark theme */
+body, body * {
+    color: var(--text-primary);
+}
+
+/* Override Bootstrap's default text colors that might conflict */
+.text-dark {
+    color: var(--text-primary) !important;
+}
+
+.text-black {
+    color: var(--text-primary) !important;
+}
+
+/* Ensure links maintain proper colors */
+a {
+    color: var(--brand-primary);
+    text-decoration: none;
+}
+
+a:hover {
+    color: var(--brand-primary-hover);
+}
+
+/* Fix for form elements */
+input, textarea, select {
+    color: var(--text-primary);
+    background-color: var(--bg-card);
+    border-color: var(--border-color);
+}
+
+/* Fix for pre and code elements */
+pre, code {
+    color: var(--text-primary);
+    background-color: var(--bg-tertiary);
+}
+
+/* Bootstrap modal fixes */
+.modal-content, .modal-header, .modal-body, .modal-footer {
+    color: var(--text-primary);
+}
+
+.modal-content *, .modal-header *, .modal-body *, .modal-footer * {
+    color: inherit;
+}
 
 .mb-0 { margin-bottom: 0 !important; }
 .mb-1 { margin-bottom: 0.5rem !important; }

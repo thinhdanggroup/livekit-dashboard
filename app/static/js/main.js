@@ -4,6 +4,9 @@
 document.addEventListener('DOMContentLoaded', function() {
     console.log('LiveKit Dashboard initialized');
     
+    // Fix text colors for dark theme
+    fixTextColors();
+    
     // Auto-dismiss alerts after 5 seconds
     const alerts = document.querySelectorAll('.alert:not(.alert-permanent)');
     alerts.forEach(alert => {
@@ -13,6 +16,51 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 5000);
     });
 });
+
+/**
+ * Fix text color issues in dark theme
+ */
+function fixTextColors() {
+    // Find all elements with black or dark text
+    const allElements = document.querySelectorAll('*');
+    
+    allElements.forEach(element => {
+        const computedStyle = window.getComputedStyle(element);
+        const color = computedStyle.color;
+        
+        // Check if text is black or very dark
+        if (color === 'rgb(0, 0, 0)' || color === '#000000' || color === 'black' ||
+            color === 'rgb(33, 37, 41)' || color === '#212529') {
+            
+            // Apply proper text color based on element type
+            if (element.closest('.alert-success')) {
+                element.style.color = 'var(--success)';
+            } else if (element.closest('.alert-danger, .alert-error')) {
+                element.style.color = 'var(--danger)';
+            } else if (element.closest('.alert-warning')) {
+                element.style.color = 'var(--warning)';
+            } else if (element.closest('.alert-info')) {
+                element.style.color = 'var(--info)';
+            } else if (element.closest('.text-muted')) {
+                element.style.color = 'var(--text-muted)';
+            } else {
+                element.style.color = 'var(--text-primary)';
+            }
+        }
+    });
+    
+    // Fix specific recommendation/failure message elements
+    const messageBoxes = document.querySelectorAll('.recommendation-box, .message-box, .failure-message, .error-message');
+    messageBoxes.forEach(box => {
+        box.style.color = 'var(--text-primary)';
+        const allChildren = box.querySelectorAll('*');
+        allChildren.forEach(child => {
+            if (!child.style.color || child.style.color === 'black' || child.style.color === 'rgb(0, 0, 0)') {
+                child.style.color = 'inherit';
+            }
+        });
+    });
+}
 
 // HTMX event handlers
 document.body.addEventListener('htmx:beforeRequest', function(event) {
@@ -178,6 +226,7 @@ window.dashboardUtils = {
     formatDuration,
     formatRelativeTime,
     confirmAction,
-    handleFormSubmit
+    handleFormSubmit,
+    fixTextColors
 };
 

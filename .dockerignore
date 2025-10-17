@@ -43,6 +43,15 @@ docs/
 *.md
 !README.md
 
+# Development scripts and temporary files
+setup_*.sh
+resolve_conflict.sh
+COMMIT_MESSAGE.md
+SSH_SETUP_GUIDE.md
+CLEANUP_NOTE.md
+DOCKERFILE_ANALYSIS.md
+REAL_ANALYTICS_GUIDE.md
+
 # Docker
 Dockerfile
 docker-compose.yml
