@@ -295,12 +295,47 @@ tbody tr:hover {
     background-color: var(--bg-hover) !important;
 }
 
+/* Ensure table cells inherit hover background color */
+tbody tr:hover td,
+tbody tr:hover th {
+    background-color: var(--bg-hover) !important;
+}
+
+/* Prevent unwanted interactions on table rows */
+tbody tr {
+    cursor: default !important;
+    pointer-events: auto !important;
+    user-select: none !important;
+}
+
+tbody tr td,
+tbody tr th {
+    cursor: default !important;
+    pointer-events: auto !important;
+}
+
+/* Ensure buttons and forms in table cells work properly */
+tbody tr td button,
+tbody tr td form,
+tbody tr td a,
+tbody tr td input,
+tbody tr td select {
+    cursor: pointer !important;
+    pointer-events: auto !important;
+    user-select: auto !important;
+}
+
 /* Override Bootstrap table styles with maximum specificity */
 .table tbody tr {
     background-color: #000000 !important;
 }
 
 .table tbody tr:hover {
+    background-color: var(--bg-hover) !important;
+}
+
+.table tbody tr:hover td,
+.table tbody tr:hover th {
     background-color: var(--bg-hover) !important;
 }
 
@@ -312,12 +347,22 @@ tbody tr:hover {
     background-color: var(--bg-hover) !important;
 }
 
+.table.table-sm tbody tr:hover td,
+.table.table-sm tbody tr:hover th {
+    background-color: var(--bg-hover) !important;
+}
+
 /* Additional Bootstrap overrides */
 .table > tbody > tr {
     background-color: #000000 !important;
 }
 
 .table > tbody > tr:hover {
+    background-color: var(--bg-hover) !important;
+}
+
+.table > tbody > tr:hover td,
+.table > tbody > tr:hover th {
     background-color: var(--bg-hover) !important;
 }
 

@@ -19,38 +19,6 @@
     <!-- Custom CSS -->
     <link rel="stylesheet" href="/static/css/style.css?v={{ range(1000, 9999) | random }}">
     
-    <!-- JavaScript to enforce table styling -->
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Force black backgrounds on all table rows
-            const tableRows = document.querySelectorAll('.table tbody tr');
-            tableRows.forEach(function(row) {
-                row.style.setProperty('background-color', '#000000', 'important');
-                
-                // Also set for all cells in the row
-                const cells = row.querySelectorAll('td, th');
-                cells.forEach(function(cell) {
-                    cell.style.setProperty('background-color', '#000000', 'important');
-                });
-                
-                // Add hover effect
-                row.addEventListener('mouseenter', function() {
-                    row.style.setProperty('background-color', '#252525', 'important');
-                    cells.forEach(function(cell) {
-                        cell.style.setProperty('background-color', '#252525', 'important');
-                    });
-                });
-                
-                row.addEventListener('mouseleave', function() {
-                    row.style.setProperty('background-color', '#000000', 'important');
-                    cells.forEach(function(cell) {
-                        cell.style.setProperty('background-color', '#000000', 'important');
-                    });
-                });
-            });
-        });
-    </script>
-    
     <!-- HTMX CSRF Token Configuration -->
     <meta name="csrf-token" content="{{ csrf_token }}">
     
