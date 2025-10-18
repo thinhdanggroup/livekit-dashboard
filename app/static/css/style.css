@@ -287,11 +287,53 @@ td {
 }
 
 tbody tr {
+    background-color: #000000 !important;
     transition: background-color 0.2s;
 }
 
 tbody tr:hover {
-    background-color: var(--bg-hover);
+    background-color: var(--bg-hover) !important;
+}
+
+/* Override Bootstrap table styles with maximum specificity */
+.table tbody tr {
+    background-color: #000000 !important;
+}
+
+.table tbody tr:hover {
+    background-color: var(--bg-hover) !important;
+}
+
+.table.table-sm tbody tr {
+    background-color: #000000 !important;
+}
+
+.table.table-sm tbody tr:hover {
+    background-color: var(--bg-hover) !important;
+}
+
+/* Additional Bootstrap overrides */
+.table > tbody > tr {
+    background-color: #000000 !important;
+}
+
+.table > tbody > tr:hover {
+    background-color: var(--bg-hover) !important;
+}
+
+.table > :not(:first-child) {
+    border-top: none !important;
+}
+
+/* Override any Bootstrap striped table styles */
+.table-striped > tbody > tr:nth-of-type(odd) > td,
+.table-striped > tbody > tr:nth-of-type(odd) > th {
+    background-color: #000000 !important;
+}
+
+.table-striped > tbody > tr:nth-of-type(even) > td,
+.table-striped > tbody > tr:nth-of-type(even) > th {
+    background-color: #000000 !important;
 }
 
 tbody tr:last-child td {
