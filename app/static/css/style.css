@@ -340,6 +340,31 @@ tbody tr:last-child td {
     border-bottom: none;
 }
 
+/* Override Bootstrap table header styles with high specificity */
+.table > thead > tr > th,
+.table thead th,
+.table > :not(caption) > * > th {
+    background-color: var(--bg-tertiary) !important;
+    color: var(--text-muted) !important;
+    border-color: var(--border-color) !important;
+    font-size: 0.75rem !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    padding: 0.75rem 1rem !important;
+}
+
+/* Ensure table header text is visible */
+.table thead {
+    background-color: var(--bg-tertiary) !important;
+}
+
+.table th {
+    background-color: var(--bg-tertiary) !important;
+    color: var(--text-muted) !important;
+    border-bottom-color: var(--border-color) !important;
+}
+
 /* Buttons */
 .btn {
     display: inline-flex;
