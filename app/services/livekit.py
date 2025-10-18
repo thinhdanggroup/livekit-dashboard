@@ -1,10 +1,11 @@
 """LiveKit SDK Client Wrapper - Pure Async Version"""
 
+import asyncio
 import os
 import time
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict, Any
 
-from livekit import api
+from livekit import api, rtc
 
 
 class LiveKitClient:
@@ -985,6 +986,204 @@ class LiveKitClient:
                 "error": str(e),
                 "url": self.url,
             }
+
+    # RTC Connection Methods
+    async def connect_to_room_for_stats(self, room_name: str) -> Tuple[Optional[Any], float, Optional[str]]:
+        """Connect to a room via RTC and get connection stats
+        
+        Returns:
+            Tuple of (stats, latency_ms, error_message)
+        """
+        room = None
+        error_msg = None
+        stats = None
+        latency = 0.0
+        
+        try:
+            t0 = time.perf_counter()
+            
+            # Create access token for temporary connection
+            grant = api.VideoGrants(
+                room_join=True,
+                room=room_name,
+                can_publish=False,
+                can_subscribe=True
+            )
+            
+            token = (
+                api.AccessToken(self.key, self.secret)
+                .with_identity("dashboard-stats-client")
+                .with_name("Dashboard Stats Client")
+                .with_grants(grant)
+                .to_jwt()
+            )
+            
+            # Create room and connect
+            room = rtc.Room()
+            
+            # Connect to the room
+            await room.connect(self.url, token)
+            
+            # Wait a moment for connection to stabilize
+            await asyncio.sleep(0.5)
+            
+            # Get RTC stats
+            if room.isconnected():
+                stats = await room.get_rtc_stats()
+            
+            latency = (time.perf_counter() - t0) * 1000  # Convert to ms
+            
+        except Exception as e:
+            error_msg = str(e)
+            latency = (time.perf_counter() - t0) * 1000 if 't0' in locals() else 0.0
+            
+        finally:
+            # Always disconnect to clean up
+            if room:
+                try:
+                    await room.disconnect()
+                except:
+                    pass  # Ignore disconnect errors
+        
+        return stats, latency, error_msg
+    
+    async def get_room_rtc_stats(self, room_name: str) -> Tuple[Dict[str, Any], float]:
+        """Get RTC statistics for a room
+        
+        Returns:
+            Tuple of (stats_dict, latency_ms)
+        """
+        stats, latency, error = await self.connect_to_room_for_stats(room_name)
+        
+        if error:
+            return {
+                "error": error,
+                "room_name": room_name
+            }, latency
+            
+        if not stats:
+            return {
+                "error": "No stats available",
+                "room_name": room_name
+            }, latency
+        
+        # Convert RTC stats to dictionary format
+        stats_dict = {
+            "room_name": room_name,
+            "publisher_stats": [],
+            "subscriber_stats": [],
+            "latency_ms": latency
+        }
+        
+        # Process publisher stats - focus on meaningful data
+        for stat in stats.publisher_stats:
+            stat_type = stat.WhichOneof("stats")
+            stat_info = {
+                "timestamp": getattr(stat, 'timestamp', None),
+                "type": stat_type,
+            }
+            
+            # Add specific stats based on type
+            if stat_type == 'outbound_rtp' and hasattr(stat, 'outbound_rtp') and stat.HasField('outbound_rtp'):
+                rtp_stats = stat.outbound_rtp
+                if hasattr(rtp_stats, 'outbound') and rtp_stats.HasField('outbound'):
+                    outbound = rtp_stats.outbound
+                    stat_info.update({
+                        "packets_sent": getattr(outbound, 'packets_sent', 0),
+                        "bytes_sent": getattr(outbound, 'bytes_sent', 0),
+                        "retransmitted_packets_sent": getattr(outbound, 'retransmitted_packets_sent', 0),
+                        "target_bitrate": getattr(outbound, 'target_bitrate', 0),
+                        "frames_encoded": getattr(outbound, 'frames_encoded', 0),
+                        "key_frames_encoded": getattr(outbound, 'key_frames_encoded', 0),
+                        "total_encode_time": getattr(outbound, 'total_encode_time', 0),
+                        "nack_count": getattr(outbound, 'nack_count', 0),
+                        "fir_count": getattr(outbound, 'fir_count', 0),
+                        "pli_count": getattr(outbound, 'pli_count', 0),
+                    })
+                    
+            elif stat_type == 'peer_connection' and hasattr(stat, 'peer_connection'):
+                # Add connection-level stats
+                stat_info["connection_type"] = "publisher"
+                
+            # Only include meaningful stats
+            if stat_type in ['outbound_rtp', 'peer_connection', 'transport']:
+                stats_dict["publisher_stats"].append(stat_info)
+        
+        # Process subscriber stats - focus on meaningful data
+        for stat in stats.subscriber_stats:
+            stat_type = stat.WhichOneof("stats")
+            stat_info = {
+                "timestamp": getattr(stat, 'timestamp', None),
+                "type": stat_type,
+            }
+            
+            # Add specific stats based on type
+            if stat_type == 'inbound_rtp' and hasattr(stat, 'inbound_rtp') and stat.HasField('inbound_rtp'):
+                rtp_stats = stat.inbound_rtp
+                if hasattr(rtp_stats, 'inbound') and rtp_stats.HasField('inbound'):
+                    inbound = rtp_stats.inbound
+                    stat_info.update({
+                        "packets_received": getattr(inbound, 'packets_received', 0),
+                        "bytes_received": getattr(inbound, 'bytes_received', 0),
+                        "packets_lost": getattr(inbound, 'packets_lost', 0),
+                        "jitter": getattr(inbound, 'jitter', 0),
+                        # Audio-specific metrics
+                        "total_samples_received": getattr(inbound, 'total_samples_received', 0),
+                        "concealed_samples": getattr(inbound, 'concealed_samples', 0),
+                        "concealment_events": getattr(inbound, 'concealment_events', 0),
+                        "audio_level": getattr(inbound, 'audio_level', 0),
+                        "total_audio_energy": getattr(inbound, 'total_audio_energy', 0),
+                        "total_samples_duration": getattr(inbound, 'total_samples_duration', 0),
+                        "jitter_buffer_delay": getattr(inbound, 'jitter_buffer_delay', 0),
+                        "jitter_buffer_target_delay": getattr(inbound, 'jitter_buffer_target_delay', 0),
+                        "jitter_buffer_emitted_count": getattr(inbound, 'jitter_buffer_emitted_count', 0),
+                        # Video-specific metrics  
+                        "frames_decoded": getattr(inbound, 'frames_decoded', 0),
+                        "frames_dropped": getattr(inbound, 'frames_dropped', 0),
+                        "frames_rendered": getattr(inbound, 'frames_rendered', 0),
+                        "key_frames_decoded": getattr(inbound, 'key_frames_decoded', 0),
+                        "frame_width": getattr(inbound, 'frame_width', 0),
+                        "frame_height": getattr(inbound, 'frame_height', 0),
+                        "frames_per_second": getattr(inbound, 'frames_per_second', 0),
+                        # Network quality metrics
+                        "nack_count": getattr(inbound, 'nack_count', 0),
+                        "fir_count": getattr(inbound, 'fir_count', 0),
+                        "pli_count": getattr(inbound, 'pli_count', 0),
+                        "packets_discarded": getattr(inbound, 'packets_discarded', 0),
+                        "retransmitted_packets_received": getattr(inbound, 'retransmitted_packets_received', 0),
+                        "retransmitted_bytes_received": getattr(inbound, 'retransmitted_bytes_received', 0),
+                    })
+                    
+            elif stat_type == 'candidate_pair' and hasattr(stat, 'candidate_pair'):
+                # Add network connectivity stats
+                pair_stats = stat.candidate_pair
+                if hasattr(pair_stats, 'candidate_pair'):
+                    pair_data = pair_stats.candidate_pair
+                    stat_info.update({
+                        "bytes_sent": getattr(pair_data, 'bytes_sent', 0),
+                        "bytes_received": getattr(pair_data, 'bytes_received', 0),
+                        "packets_sent": getattr(pair_data, 'packets_sent', 0),
+                        "packets_received": getattr(pair_data, 'packets_received', 0),
+                        "current_round_trip_time": getattr(pair_data, 'current_round_trip_time', 0),
+                        "total_round_trip_time": getattr(pair_data, 'total_round_trip_time', 0),
+                        "available_outgoing_bitrate": getattr(pair_data, 'available_outgoing_bitrate', 0),
+                        "available_incoming_bitrate": getattr(pair_data, 'available_incoming_bitrate', 0),
+                        "nominated": getattr(pair_data, 'nominated', False),
+                        "state": getattr(pair_data, 'state', 0),
+                        "requests_sent": getattr(pair_data, 'requests_sent', 0),
+                        "responses_received": getattr(pair_data, 'responses_received', 0),
+                        "packets_discarded_on_send": getattr(pair_data, 'packets_discarded_on_send', 0),
+                    })
+                    
+            elif stat_type == 'transport' and hasattr(stat, 'transport'):
+                # Add transport-level stats
+                stat_info["connection_type"] = "subscriber"
+            
+            # Only include meaningful stats
+            if stat_type in ['inbound_rtp', 'candidate_pair', 'transport', 'peer_connection']:
+                stats_dict["subscriber_stats"].append(stat_info)
+        
+        return stats_dict, latency
 
 
 # Dependency injection helper

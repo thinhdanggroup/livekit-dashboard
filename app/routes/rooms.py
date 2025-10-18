@@ -258,3 +258,29 @@ async def mute_participant(
         print(f"Error muting participant: {e}")
 
     return RedirectResponse(url=f"/rooms/{room_name}", status_code=303)
+
+
+@router.get(
+    "/rooms/{room_name}/rtc-stats", 
+    dependencies=[Depends(requires_admin)]
+)
+async def get_room_rtc_stats(
+    request: Request,
+    room_name: str,
+    lk: LiveKitClient = Depends(get_livekit_client),
+):
+    """Get RTC statistics for a room via direct connection"""
+    try:
+        stats_dict, latency = await lk.get_room_rtc_stats(room_name)
+        
+        return {
+            "success": True,
+            "data": stats_dict,
+            "latency_ms": round(latency, 2)
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "room_name": room_name
+        }

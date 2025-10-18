@@ -75,6 +75,35 @@
 </div>
 {% endif %}
 
+<!-- RTC Stats -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-graph-up"></i> RTC Connection Stats
+                </h5>
+                <div>
+                    <button type="button" class="btn btn-sm btn-primary" onclick="loadRtcStats()">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh Stats
+                    </button>
+                    <div class="form-check form-switch d-inline-block ms-3">
+                        <input class="form-check-input" type="checkbox" id="autoRefreshStats">
+                        <label class="form-check-label" for="autoRefreshStats">Auto-refresh</label>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="rtc-stats-content">
+                    <div class="text-center text-muted">
+                        <i class="bi bi-info-circle"></i> Click "Refresh Stats" to load RTC connection statistics
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Participants -->
 <div id="participants-section">
     <div class="row">
@@ -88,7 +117,7 @@
                 <div class="card-body">
                     {% if participants %}
                     <div class="table-responsive">
-                        <table class="table table-hover">
+                        <table class="table table-dark table-hover table-striped">
                             <thead>
                                 <tr>
                                     <th>Identity</th>
@@ -207,6 +236,379 @@ function confirmDeleteRoom(roomName) {
         document.getElementById('deleteRoomForm').submit();
     }
 }
+
+let autoRefreshInterval = null;
+
+function loadRtcStats() {
+    const statsContainer = document.getElementById('rtc-stats-content');
+    const roomName = '{{ room.name }}';
+    
+    // Show loading state
+    statsContainer.innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border spinner-border-sm" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <span class="ms-2">Connecting to room and gathering RTC stats...</span>
+        </div>
+    `;
+    
+    fetch(`/rooms/${encodeURIComponent(roomName)}/rtc-stats`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayRtcStats(data.data, data.latency_ms);
+            } else {
+                statsContainer.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <strong>Error:</strong> ${data.error || 'Failed to load RTC stats'}
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            statsContainer.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>Connection Error:</strong> ${error.message}
+                </div>
+            `;
+        });
+}
+
+function displayRtcStats(stats, latencyMs) {
+    const statsContainer = document.getElementById('rtc-stats-content');
+    
+    if (stats.error) {
+        statsContainer.innerHTML = `
+            <div class="alert alert-warning">
+                <i class="bi bi-info-circle"></i>
+                <strong>Stats Unavailable:</strong> ${stats.error}
+            </div>
+        `;
+        return;
+    }
+    
+    let html = `
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <div class="card bg-dark text-light">
+                    <div class="card-body text-center">
+                        <h6 class="card-subtitle mb-2 text-muted">Connection Latency</h6>
+                        <h4 class="text-primary">${latencyMs.toFixed(1)} ms</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-dark text-light">
+                    <div class="card-body text-center">
+                        <h6 class="card-subtitle mb-2 text-muted">Publisher Stats</h6>
+                        <h4 class="text-success">${stats.publisher_stats.length}</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-dark text-light">
+                    <div class="card-body text-center">
+                        <h6 class="card-subtitle mb-2 text-muted">Subscriber Stats</h6>
+                        <h4 class="text-info">${stats.subscriber_stats.length}</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add publisher stats details with enhanced metrics
+    if (stats.publisher_stats.length > 0) {
+        html += `
+            <div class="row mb-3">
+                <div class="col-12">
+                    <h6><i class="bi bi-upload"></i> Publisher Statistics (Outbound RTP)</h6>
+                    <div class="table-responsive">
+                        <table class="table table-dark table-striped table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Media</th>
+                                    <th>Packets</th>
+                                    <th>Bytes</th>
+                                    <th>Target Bitrate</th>
+                                    <th>Video Quality</th>
+                                    <th>Network</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+        `;
+        
+        stats.publisher_stats.forEach(stat => {
+            const mediaType = stat.kind || 'unknown';
+            
+            html += `<tr>`;
+            html += `<td><span class="badge ${mediaType === 'audio' ? 'bg-info' : 'bg-warning'}">${mediaType}</span></td>`;
+            
+            // Packets
+            html += '<td>';
+            html += `<small>Sent: ${formatNumber(stat.packets_sent || 0)}</small>`;
+            if (stat.retransmitted_packets_sent !== undefined) {
+                html += `<br><small class="text-warning">Retrans: ${formatNumber(stat.retransmitted_packets_sent)}</small>`;
+            }
+            html += '</td>';
+            
+            // Bytes
+            html += `<td>${formatBytes(stat.bytes_sent || 0)}</td>`;
+            
+            // Bitrate
+            html += '<td>';
+            if (stat.target_bitrate !== undefined) {
+                html += `${formatBitrate(stat.target_bitrate)}`;
+            } else {
+                html += '<span class="text-muted">-</span>';
+            }
+            html += '</td>';
+            
+            // Video Quality
+            html += '<td>';
+            if (mediaType === 'video') {
+                if (stat.frames_encoded !== undefined) {
+                    html += `<small>Encoded: ${formatNumber(stat.frames_encoded)}</small><br>`;
+                }
+                if (stat.frame_width && stat.frame_height) {
+                    html += `<small>Resolution: ${stat.frame_width}×${stat.frame_height}</small><br>`;
+                }
+                if (stat.frames_per_second !== undefined) {
+                    html += `<small>FPS: ${stat.frames_per_second.toFixed(1)}</small>`;
+                }
+            } else if (mediaType === 'audio') {
+                html += '<small class="text-muted">Audio stream</small>';
+            } else {
+                html += '<span class="text-muted">-</span>';
+            }
+            html += '</td>';
+            
+            // Network info
+            html += '<td>';
+            html += `<small>ID: ${stat.id ? stat.id.substring(0, 8) + '...' : 'N/A'}</small><br>`;
+            html += `<small>${formatTimestamp(stat.timestamp)}</small>`;
+            html += '</td>';
+            
+            html += '</tr>';
+        });
+        
+        html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    // Add subscriber stats details with enhanced metrics
+    if (stats.subscriber_stats.length > 0) {
+        html += `
+            <div class="row">
+                <div class="col-12">
+                    <h6><i class="bi bi-download"></i> Subscriber Statistics</h6>
+                    <div class="table-responsive">
+                        <table class="table table-dark table-striped table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Media</th>
+                                    <th>Packets</th>
+                                    <th>Bytes</th>
+                                    <th>Quality Metrics</th>
+                                    <th>Audio Metrics</th>
+                                    <th>Network</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+        `;
+        
+        stats.subscriber_stats.forEach(stat => {
+            const mediaType = stat.kind || stat.type;
+            
+            html += `<tr>`;
+            html += `<td><span class="badge bg-secondary">${stat.type || 'Unknown'}</span></td>`;
+            
+            // Media Type
+            html += '<td>';
+            if (mediaType && mediaType !== stat.type) {
+                html += `<span class="badge ${mediaType === 'audio' ? 'bg-info' : 'bg-warning'}">${mediaType}</span>`;
+            } else {
+                html += '<span class="text-muted">-</span>';
+            }
+            html += '</td>';
+            
+            // Packets
+            html += '<td>';
+            if (stat.type === 'inbound_rtp') {
+                html += `<small>RX: ${formatNumber(stat.packets_received || 0)}</small>`;
+                if (stat.packets_lost !== undefined) {
+                    html += `<br><small class="text-danger">Lost: ${formatNumber(stat.packets_lost)}</small>`;
+                    if (stat.packets_received > 0) {
+                        const lossRate = ((stat.packets_lost / (stat.packets_received + stat.packets_lost)) * 100).toFixed(2);
+                        html += `<br><small class="text-danger">Loss: ${lossRate}%</small>`;
+                    }
+                }
+            } else if (stat.type === 'candidate_pair') {
+                html += `<small>RX: ${formatNumber(stat.packets_received || 0)}</small><br>`;
+                html += `<small>TX: ${formatNumber(stat.packets_sent || 0)}</small>`;
+            } else {
+                html += '<span class="text-muted">-</span>';
+            }
+            html += '</td>';
+            
+            // Bytes
+            html += '<td>';
+            if (stat.type === 'inbound_rtp') {
+                html += formatBytes(stat.bytes_received || 0);
+            } else if (stat.type === 'candidate_pair') {
+                html += `<small>↓ ${formatBytes(stat.bytes_received || 0)}</small><br>`;
+                html += `<small>↑ ${formatBytes(stat.bytes_sent || 0)}</small>`;
+            } else {
+                html += formatBytes(stat.bytes || 0);
+            }
+            html += '</td>';
+            
+            // Quality Metrics (Jitter, RTT, Frame stats)
+            html += '<td>';
+            if (stat.type === 'inbound_rtp') {
+                if (stat.jitter !== undefined) {
+                    html += `<small>Jitter: ${(stat.jitter * 1000).toFixed(2)}ms</small><br>`;
+                }
+                if (stat.jitter_buffer_delay !== undefined) {
+                    html += `<small>Buffer: ${(stat.jitter_buffer_delay).toFixed(1)}ms</small><br>`;
+                }
+                if (mediaType === 'video') {
+                    if (stat.frames_decoded !== undefined) {
+                        html += `<small>Decoded: ${formatNumber(stat.frames_decoded)}</small><br>`;
+                    }
+                    if (stat.frames_dropped !== undefined) {
+                        html += `<small>Dropped: ${formatNumber(stat.frames_dropped)}</small><br>`;
+                    }
+                    if (stat.frame_width && stat.frame_height) {
+                        html += `<small>Size: ${stat.frame_width}×${stat.frame_height}</small><br>`;
+                    }
+                    if (stat.frames_per_second !== undefined) {
+                        html += `<small>FPS: ${stat.frames_per_second.toFixed(1)}</small>`;
+                    }
+                }
+            } else if (stat.type === 'candidate_pair') {
+                if (stat.current_round_trip_time !== undefined) {
+                    html += `<small>RTT: ${(stat.current_round_trip_time * 1000).toFixed(1)}ms</small><br>`;
+                }
+                if (stat.available_outgoing_bitrate !== undefined) {
+                    html += `<small>↑ ${formatBitrate(stat.available_outgoing_bitrate)}</small><br>`;
+                }
+                if (stat.available_incoming_bitrate !== undefined) {
+                    html += `<small>↓ ${formatBitrate(stat.available_incoming_bitrate)}</small>`;
+                }
+            } else {
+                html += '<span class="text-muted">-</span>';
+            }
+            html += '</td>';
+            
+            // Audio Metrics
+            html += '<td>';
+            if (stat.type === 'inbound_rtp' && mediaType === 'audio') {
+                if (stat.total_samples_received !== undefined) {
+                    html += `<small>Samples: ${formatNumber(stat.total_samples_received)}</small><br>`;
+                }
+                if (stat.concealed_samples !== undefined) {
+                    html += `<small>Concealed: ${formatNumber(stat.concealed_samples)}</small><br>`;
+                }
+                if (stat.audio_level !== undefined) {
+                    html += `<small>Level: ${(stat.audio_level * 100).toFixed(1)}%</small><br>`;
+                }
+                if (stat.total_audio_energy !== undefined) {
+                    html += `<small>Energy: ${stat.total_audio_energy.toFixed(3)}</small>`;
+                }
+            } else {
+                html += '<span class="text-muted">-</span>';
+            }
+            html += '</td>';
+            
+            // Network info
+            html += '<td>';
+            html += `<small>ID: ${stat.id ? stat.id.substring(0, 8) + '...' : 'N/A'}</small><br>`;
+            if (stat.type === 'candidate_pair' && stat.nominated) {
+                html += '<small><span class="badge bg-success">Active</span></small><br>';
+            }
+            html += `<small>${formatTimestamp(stat.timestamp)}</small>`;
+            html += '</td>';
+            
+            html += '</tr>';
+        });
+        
+        html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    if (stats.publisher_stats.length === 0 && stats.subscriber_stats.length === 0) {
+        html += `
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i>
+                No active RTC streams found in this room. This may be normal if no participants are currently publishing or subscribing to tracks.
+            </div>
+        `;
+    }
+    
+    html += `
+        <div class="text-end mt-3">
+            <small class="text-muted">Last updated: ${new Date().toLocaleTimeString()}</small>
+        </div>
+    `;
+    
+    statsContainer.innerHTML = html;
+}
+
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+function formatBitrate(bitrate) {
+    if (bitrate === 0) return '0 bps';
+    const k = 1000;
+    const sizes = ['bps', 'Kbps', 'Mbps', 'Gbps'];
+    const i = Math.floor(Math.log(bitrate) / Math.log(k));
+    return parseFloat((bitrate / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+function formatNumber(num) {
+    if (num === 0) return '0';
+    return num.toLocaleString();
+}
+
+function formatTimestamp(timestamp) {
+    if (!timestamp) return 'N/A';
+    return new Date(timestamp * 1000).toLocaleTimeString();
+}
+
+// Auto-refresh functionality
+document.getElementById('autoRefreshStats').addEventListener('change', function() {
+    if (this.checked) {
+        // Start auto-refresh every 5 seconds
+        autoRefreshInterval = setInterval(loadRtcStats, 5000);
+        // Load stats immediately
+        loadRtcStats();
+    } else {
+        // Stop auto-refresh
+        if (autoRefreshInterval) {
+            clearInterval(autoRefreshInterval);
+            autoRefreshInterval = null;
+        }
+    }
+});
 </script>
 {% endblock %}
 
