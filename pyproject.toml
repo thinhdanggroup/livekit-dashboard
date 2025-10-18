@@ -16,6 +16,8 @@ livekit = "^1.0.9"
 livekit-api = "^1.0.7"
 itsdangerous = "^2.1.2"
 python-dotenv = "^1.0.0"
+colorama = "^0.4.6"
+pydub = "^0.25.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"
