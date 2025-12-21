@@ -1,6 +1,7 @@
 """LiveKit SDK Client Wrapper - Pure Async Version"""
 
 import asyncio
+import json
 import os
 import time
 from typing import List, Optional, Tuple, Dict, Any
@@ -84,7 +85,7 @@ class LiveKitClient:
         req = api.ListParticipantsRequest(room=room_name)
         resp = await lk.room.list_participants(req)
         return list(resp.participants)
-    
+
     async def get_detailed_participants(self, room_name: str) -> List:
         """Get detailed participant information including metadata and connection info"""
         try:
@@ -92,7 +93,7 @@ class LiveKitClient:
             req = api.ListParticipantsRequest(room=room_name)
             resp = await lk.room.list_participants(req)
             participants = list(resp.participants)
-            
+
             # Get additional details for each participant if needed
             detailed_participants = []
             for participant in participants:
@@ -103,10 +104,12 @@ class LiveKitClient:
                     )
                     detailed_participants.append(detailed)
                 except Exception as e:
-                    print(f"DEBUG: Could not get details for participant {participant.identity}: {e}")
+                    print(
+                        f"DEBUG: Could not get details for participant {participant.identity}: {e}"
+                    )
                     # Fallback to basic participant info
                     detailed_participants.append(participant)
-            
+
             return detailed_participants
         except Exception as e:
             print(f"DEBUG: Error getting detailed participants for room {room_name}: {e}")
@@ -117,14 +120,14 @@ class LiveKitClient:
         try:
             rooms, _ = await self.list_rooms()
             all_participants = []
-            
+
             for room in rooms:
                 participants = await self.get_detailed_participants(room.name)
                 # Add room context to each participant
                 for participant in participants:
                     participant._room_name = room.name
                 all_participants.extend(participants)
-            
+
             return all_participants
         except Exception as e:
             print(f"DEBUG: Error getting all participants: {e}")
@@ -519,38 +522,79 @@ class LiveKitClient:
         name: Optional[str] = None,
         trunk_ids: Optional[List[str]] = None,
         hide_phone_number: bool = False,
+        dispatch_rule_type: str = "direct",
         room_name: Optional[str] = None,
+        room_prefix: Optional[str] = None,
         pin: Optional[str] = None,
+        randomize: bool = False,
         metadata: Optional[str] = None,
         attributes: Optional[dict] = None,
         agent_name: Optional[str] = None,
         agent_metadata: Optional[str] = None,
         **kwargs,
     ):
-        """Create a SIP dispatch rule with optional agent configuration"""
+        """Create a SIP dispatch rule with optional agent configuration
+
+        Args:
+            dispatch_rule_type: One of 'direct', 'individual', or 'callee'
+                - 'direct': Route to a specific room (requires room_name)
+                - 'individual': Route each caller to their own individual room (supports room_prefix, pin)
+                - 'callee': Route based on the called number (supports room_prefix, pin, randomize)
+            room_name: Room name for direct dispatch type
+            room_prefix: Room prefix for individual/callee dispatch types
+            pin: PIN for any dispatch type
+            randomize: Whether to randomize room name for callee type
+        """
         if not self.sip_enabled:
             raise ValueError("SIP is not enabled")
 
         lk = await self._get_api()
 
-        # Build dispatch rule
-        rule = api.SIPDispatchRule()
-        rule.hide_phone_number = hide_phone_number  # type: ignore[attr-defined]
-        rule.room_name = room_name or ""  # type: ignore[attr-defined]
-        rule.pin = pin or ""  # type: ignore[attr-defined]
+        # Build dispatch rule based on type
+        rule: api.SIPDispatchRule
+
+        if dispatch_rule_type == "direct":
+            # Direct dispatch: route to a specific room
+            direct_rule = api.SIPDispatchRuleDirect(
+                room_name=room_name or "",
+                pin=pin or "",
+            )
+            rule = api.SIPDispatchRule(dispatch_rule_direct=direct_rule)
+        elif dispatch_rule_type == "individual":
+            # Individual dispatch: each caller gets their own room
+            individual_rule = api.SIPDispatchRuleIndividual(
+                room_prefix=room_prefix or "",
+                pin=pin or "",
+            )
+            rule = api.SIPDispatchRule(dispatch_rule_individual=individual_rule)
+        elif dispatch_rule_type == "callee":
+            # Callee dispatch: route based on called number
+            callee_rule = api.SIPDispatchRuleCallee(
+                room_prefix=room_prefix or "",
+                pin=pin or "",
+                randomize=randomize,
+            )
+            rule = api.SIPDispatchRule(dispatch_rule_callee=callee_rule)
+        else:
+            raise ValueError(
+                f"Invalid dispatch_rule_type: {dispatch_rule_type}. Must be 'direct', 'individual', or 'callee'"
+            )
 
         # Build dispatch rule info
-        rule_info = api.SIPDispatchRuleInfo(rule=rule)
+        rule_info_params: Dict[str, Any] = {
+            "rule": rule,  # This is required!
+        }
 
         if name:
-            rule_info.name = name
+            rule_info_params["name"] = name
         if trunk_ids:
-            rule_info.trunk_ids.extend(trunk_ids)
+            rule_info_params["trunk_ids"] = trunk_ids
         if metadata:
-            rule_info.metadata = metadata
+            rule_info_params["metadata"] = metadata
         if attributes:
-            for key, value in attributes.items():
-                rule_info.attributes[key] = value
+            rule_info_params["attributes"] = attributes
+        if hide_phone_number:
+            rule_info_params["hide_phone_number"] = hide_phone_number
 
         # Add agent configuration if provided
         if agent_name:
@@ -558,9 +602,19 @@ class LiveKitClient:
                 agent_name=agent_name,
                 metadata=agent_metadata or "",
             )
-            rule_info.room_config = api.RoomConfiguration(agents=[agent_dispatch])
+            rule_info_params["room_config"] = api.RoomConfiguration(agents=[agent_dispatch])
 
-        req = api.CreateSIPDispatchRuleRequest(rule=rule)
+        rule_info = api.SIPDispatchRuleInfo(**rule_info_params)
+
+        req = api.CreateSIPDispatchRuleRequest(
+            rule=rule,
+            dispatch_rule=rule_info,
+            trunk_ids=trunk_ids,
+            hide_phone_number=hide_phone_number,
+            name=name,
+            metadata=metadata,
+            attributes=attributes,
+        )
         return await lk.sip.create_dispatch_rule(req)
 
     async def update_sip_dispatch_rule(
@@ -569,38 +623,92 @@ class LiveKitClient:
         name: Optional[str] = None,
         trunk_ids: Optional[List[str]] = None,
         hide_phone_number: Optional[bool] = None,
+        dispatch_rule_type: Optional[str] = None,
         room_name: Optional[str] = None,
+        room_prefix: Optional[str] = None,
         pin: Optional[str] = None,
+        randomize: Optional[bool] = None,
         metadata: Optional[str] = None,
         attributes: Optional[dict] = None,
         agent_name: Optional[str] = None,
         agent_metadata: Optional[str] = None,
         **kwargs,
     ):
-        """Update a SIP dispatch rule with optional agent configuration"""
+        """Update a SIP dispatch rule with optional agent configuration
+
+        Args:
+            dispatch_rule_type: One of 'direct', 'individual', or 'callee'
+                - 'direct': Route to a specific room (requires room_name)
+                - 'individual': Route each caller to their own individual room (supports room_prefix, pin)
+                - 'callee': Route based on the called number (supports room_prefix, pin, randomize)
+            room_name: Room name for direct dispatch type
+            room_prefix: Room prefix for individual/callee dispatch types
+            pin: PIN for any dispatch type
+            randomize: Whether to randomize room name for callee type
+        """
         if not self.sip_enabled:
             raise ValueError("SIP is not enabled")
 
         lk = await self._get_api()
 
-        # Build dispatch rule (protobuf fields are dynamically generated)
-        rule = api.SIPDispatchRule()
-        rule.hide_phone_number = hide_phone_number if hide_phone_number is not None else False  # type: ignore[attr-defined]
-        rule.room_name = room_name if room_name is not None else ""  # type: ignore[attr-defined]
-        rule.pin = pin if pin is not None else ""  # type: ignore[attr-defined]
+        # Build dispatch rule based on type
+        rule: api.SIPDispatchRule
+
+        # If dispatch_rule_type is provided, set the appropriate rule type
+        if dispatch_rule_type:
+            if dispatch_rule_type == "direct":
+                # Direct dispatch: route to a specific room
+                direct_rule = api.SIPDispatchRuleDirect(
+                    room_name=room_name or "",
+                    pin=pin or "",
+                )
+                rule = api.SIPDispatchRule(dispatch_rule_direct=direct_rule)
+            elif dispatch_rule_type == "individual":
+                # Individual dispatch: each caller gets their own room
+                individual_rule = api.SIPDispatchRuleIndividual(
+                    room_prefix=room_prefix or "",
+                    pin=pin or "",
+                )
+                rule = api.SIPDispatchRule(dispatch_rule_individual=individual_rule)
+            elif dispatch_rule_type == "callee":
+                # Callee dispatch: route based on called number
+                callee_rule = api.SIPDispatchRuleCallee(
+                    room_prefix=room_prefix or "",
+                    pin=pin or "",
+                    randomize=randomize,
+                )
+                rule = api.SIPDispatchRule(dispatch_rule_callee=callee_rule)
+            else:
+                raise ValueError(
+                    f"Invalid dispatch_rule_type: {dispatch_rule_type}. Must be 'direct', 'individual', or 'callee'"
+                )
+        else:
+            # If type not provided, try to preserve existing rule structure
+            # For backward compatibility, assume direct if room_name or pin is provided
+            if room_name is not None or pin is not None:
+                direct_rule = api.SIPDispatchRuleDirect(
+                    room_name=room_name or "",
+                    pin=pin or "",
+                )
+                rule = api.SIPDispatchRule(dispatch_rule_direct=direct_rule)
 
         # Build dispatch rule info
-        rule_info = api.SIPDispatchRuleInfo(sip_dispatch_rule_id=sip_dispatch_rule_id, rule=rule)
+        rule_info_params: Dict[str, Any] = {
+            "sip_dispatch_rule_id": sip_dispatch_rule_id,
+            "rule": rule,
+        }
 
         if name is not None:
-            rule_info.name = name
+            rule_info_params["name"] = name
         if trunk_ids is not None:
-            rule_info.trunk_ids.extend(trunk_ids)
+            rule_info_params["trunk_ids"] = trunk_ids
         if metadata is not None:
-            rule_info.metadata = metadata
+            rule_info_params["metadata"] = metadata
         if attributes is not None:
             for key, value in attributes.items():
-                rule_info.attributes[key] = value
+                rule_info_params["attributes"][key] = value
+        if hide_phone_number is not None:
+            rule_info_params["hide_phone_number"] = hide_phone_number
 
         # Add agent configuration if provided
         if agent_name is not None:
@@ -609,12 +717,17 @@ class LiveKitClient:
                     agent_name=agent_name,
                     metadata=agent_metadata or "",
                 )
-                rule_info.room_config = api.RoomConfiguration(agents=[agent_dispatch])
+                rule_info_params["room_config"] = api.RoomConfiguration(agents=[agent_dispatch])
             else:
                 # Empty agent_name means clear the agent configuration
-                rule_info.room_config = api.RoomConfiguration()
+                rule_info_params["room_config"] = api.RoomConfiguration()
 
-        return await lk.sip.update_dispatch_rule(rule_id=sip_dispatch_rule_id, rule=rule_info)
+        rule_info = api.SIPDispatchRuleInfo(**rule_info_params)
+
+        return await lk.sip.update_dispatch_rule(
+            rule_id=sip_dispatch_rule_id,
+            rule=rule_info,
+        )
 
     async def delete_sip_dispatch_rule(self, sip_dispatch_rule_id: str):
         """Delete a SIP dispatch rule"""
@@ -814,7 +927,7 @@ class LiveKitClient:
         # 1. Set up webhook endpoints to receive LiveKit events
         # 2. Store events in a database (participant_joined, participant_left, etc.)
         # 3. Query the database for analytics data
-        
+
         # For now, return empty data
         return {
             "has_webhook_data": False,
@@ -833,21 +946,21 @@ class LiveKitClient:
         try:
             # Get real-time data
             room_analytics = await self.get_room_analytics()
-            
+
             # Get webhook data (if available)
             webhook_analytics = await self.get_webhook_analytics()
-            
+
             # Calculate enhanced metrics
             total_participants = room_analytics.get("total_participants", 0)
             total_rooms = room_analytics.get("total_rooms", 0)
-            
+
             # Connection success rate based on room/participant health
             if total_rooms > 0:
                 active_rooms = room_analytics.get("active_rooms", 0)
                 connection_success = round((active_rooms / total_rooms) * 100, 1)
             else:
                 connection_success = 100
-            
+
             # Estimate platforms based on room patterns
             platforms = {}
             if total_participants > 0:
@@ -856,22 +969,26 @@ class LiveKitClient:
                     "Web": int(total_participants * 0.6),
                     "iOS": int(total_participants * 0.2),
                     "Android": int(total_participants * 0.15),
-                    "React Native": int(total_participants * 0.05)
+                    "React Native": int(total_participants * 0.05),
                 }
             else:
                 # Sample data when no participants
                 platforms = {"Web": 8, "iOS": 3, "Android": 2, "React Native": 1}
-            
+
             # Connection types based on LiveKit deployment
-            connection_types = {
-                "WebRTC Direct": max(1, int(total_participants * 0.7)),
-                "TURN Relay": max(1, int(total_participants * 0.3))
-            } if total_participants > 0 else {"WebRTC Direct": 10, "TURN Relay": 4}
-            
+            connection_types = (
+                {
+                    "WebRTC Direct": max(1, int(total_participants * 0.7)),
+                    "TURN Relay": max(1, int(total_participants * 0.3)),
+                }
+                if total_participants > 0
+                else {"WebRTC Direct": 10, "TURN Relay": 4}
+            )
+
             # Estimate connection minutes
             avg_session_minutes = 25  # Average session length
             connection_minutes = total_participants * avg_session_minutes
-            
+
             return {
                 "connection_success": connection_success,
                 "connection_minutes": connection_minutes,
@@ -881,7 +998,7 @@ class LiveKitClient:
                 "participant_count": total_participants,
                 "room_count": total_rooms,
             }
-            
+
         except Exception as e:
             print(f"DEBUG: Error getting enhanced analytics: {e}")
             # Fallback to sample data
@@ -894,6 +1011,7 @@ class LiveKitClient:
                 "participant_count": 0,
                 "room_count": 0,
             }
+
     async def get_sip_analytics(self) -> dict:
         """Get SIP/telephony analytics data"""
         print(f"DEBUG: get_sip_analytics called, sip_enabled = {self.sip_enabled}")
@@ -988,9 +1106,11 @@ class LiveKitClient:
             }
 
     # RTC Connection Methods
-    async def connect_to_room_for_stats(self, room_name: str) -> Tuple[Optional[Any], float, Optional[str]]:
+    async def connect_to_room_for_stats(
+        self, room_name: str
+    ) -> Tuple[Optional[Any], float, Optional[str]]:
         """Connect to a room via RTC and get connection stats
-        
+
         Returns:
             Tuple of (stats, latency_ms, error_message)
         """
@@ -998,18 +1118,15 @@ class LiveKitClient:
         error_msg = None
         stats = None
         latency = 0.0
-        
+
         try:
             t0 = time.perf_counter()
-            
+
             # Create access token for temporary connection
             grant = api.VideoGrants(
-                room_join=True,
-                room=room_name,
-                can_publish=False,
-                can_subscribe=True
+                room_join=True, room=room_name, can_publish=False, can_subscribe=True
             )
-            
+
             token = (
                 api.AccessToken(self.key, self.secret)
                 .with_identity("dashboard-stats-client")
@@ -1017,26 +1134,26 @@ class LiveKitClient:
                 .with_grants(grant)
                 .to_jwt()
             )
-            
+
             # Create room and connect
             room = rtc.Room()
-            
+
             # Connect to the room
             await room.connect(self.url, token)
-            
+
             # Wait a moment for connection to stabilize
             await asyncio.sleep(0.5)
-            
+
             # Get RTC stats
             if room.isconnected():
                 stats = await room.get_rtc_stats()
-            
+
             latency = (time.perf_counter() - t0) * 1000  # Convert to ms
-            
+
         except Exception as e:
             error_msg = str(e)
-            latency = (time.perf_counter() - t0) * 1000 if 't0' in locals() else 0.0
-            
+            latency = (time.perf_counter() - t0) * 1000 if "t0" in locals() else 0.0
+
         finally:
             # Always disconnect to clean up
             if room:
@@ -1044,145 +1161,171 @@ class LiveKitClient:
                     await room.disconnect()
                 except:
                     pass  # Ignore disconnect errors
-        
+
         return stats, latency, error_msg
-    
+
     async def get_room_rtc_stats(self, room_name: str) -> Tuple[Dict[str, Any], float]:
         """Get RTC statistics for a room
-        
+
         Returns:
             Tuple of (stats_dict, latency_ms)
         """
         stats, latency, error = await self.connect_to_room_for_stats(room_name)
-        
+
         if error:
-            return {
-                "error": error,
-                "room_name": room_name
-            }, latency
-            
+            return {"error": error, "room_name": room_name}, latency
+
         if not stats:
-            return {
-                "error": "No stats available",
-                "room_name": room_name
-            }, latency
-        
+            return {"error": "No stats available", "room_name": room_name}, latency
+
         # Convert RTC stats to dictionary format
         stats_dict = {
             "room_name": room_name,
             "publisher_stats": [],
             "subscriber_stats": [],
-            "latency_ms": latency
+            "latency_ms": latency,
         }
-        
+
         # Process publisher stats - focus on meaningful data
         for stat in stats.publisher_stats:
             stat_type = stat.WhichOneof("stats")
             stat_info = {
-                "timestamp": getattr(stat, 'timestamp', None),
+                "timestamp": getattr(stat, "timestamp", None),
                 "type": stat_type,
             }
-            
+
             # Add specific stats based on type
-            if stat_type == 'outbound_rtp' and hasattr(stat, 'outbound_rtp') and stat.HasField('outbound_rtp'):
+            if (
+                stat_type == "outbound_rtp"
+                and hasattr(stat, "outbound_rtp")
+                and stat.HasField("outbound_rtp")
+            ):
                 rtp_stats = stat.outbound_rtp
-                if hasattr(rtp_stats, 'outbound') and rtp_stats.HasField('outbound'):
+                if hasattr(rtp_stats, "outbound") and rtp_stats.HasField("outbound"):
                     outbound = rtp_stats.outbound
-                    stat_info.update({
-                        "packets_sent": getattr(outbound, 'packets_sent', 0),
-                        "bytes_sent": getattr(outbound, 'bytes_sent', 0),
-                        "retransmitted_packets_sent": getattr(outbound, 'retransmitted_packets_sent', 0),
-                        "target_bitrate": getattr(outbound, 'target_bitrate', 0),
-                        "frames_encoded": getattr(outbound, 'frames_encoded', 0),
-                        "key_frames_encoded": getattr(outbound, 'key_frames_encoded', 0),
-                        "total_encode_time": getattr(outbound, 'total_encode_time', 0),
-                        "nack_count": getattr(outbound, 'nack_count', 0),
-                        "fir_count": getattr(outbound, 'fir_count', 0),
-                        "pli_count": getattr(outbound, 'pli_count', 0),
-                    })
-                    
-            elif stat_type == 'peer_connection' and hasattr(stat, 'peer_connection'):
+                    stat_info.update(
+                        {
+                            "packets_sent": getattr(outbound, "packets_sent", 0),
+                            "bytes_sent": getattr(outbound, "bytes_sent", 0),
+                            "retransmitted_packets_sent": getattr(
+                                outbound, "retransmitted_packets_sent", 0
+                            ),
+                            "target_bitrate": getattr(outbound, "target_bitrate", 0),
+                            "frames_encoded": getattr(outbound, "frames_encoded", 0),
+                            "key_frames_encoded": getattr(outbound, "key_frames_encoded", 0),
+                            "total_encode_time": getattr(outbound, "total_encode_time", 0),
+                            "nack_count": getattr(outbound, "nack_count", 0),
+                            "fir_count": getattr(outbound, "fir_count", 0),
+                            "pli_count": getattr(outbound, "pli_count", 0),
+                        }
+                    )
+
+            elif stat_type == "peer_connection" and hasattr(stat, "peer_connection"):
                 # Add connection-level stats
                 stat_info["connection_type"] = "publisher"
-                
+
             # Only include meaningful stats
-            if stat_type in ['outbound_rtp', 'peer_connection', 'transport']:
+            if stat_type in ["outbound_rtp", "peer_connection", "transport"]:
                 stats_dict["publisher_stats"].append(stat_info)
-        
+
         # Process subscriber stats - focus on meaningful data
         for stat in stats.subscriber_stats:
             stat_type = stat.WhichOneof("stats")
             stat_info = {
-                "timestamp": getattr(stat, 'timestamp', None),
+                "timestamp": getattr(stat, "timestamp", None),
                 "type": stat_type,
             }
-            
+
             # Add specific stats based on type
-            if stat_type == 'inbound_rtp' and hasattr(stat, 'inbound_rtp') and stat.HasField('inbound_rtp'):
+            if (
+                stat_type == "inbound_rtp"
+                and hasattr(stat, "inbound_rtp")
+                and stat.HasField("inbound_rtp")
+            ):
                 rtp_stats = stat.inbound_rtp
-                if hasattr(rtp_stats, 'inbound') and rtp_stats.HasField('inbound'):
+                if hasattr(rtp_stats, "inbound") and rtp_stats.HasField("inbound"):
                     inbound = rtp_stats.inbound
-                    stat_info.update({
-                        "packets_received": getattr(inbound, 'packets_received', 0),
-                        "bytes_received": getattr(inbound, 'bytes_received', 0),
-                        "packets_lost": getattr(inbound, 'packets_lost', 0),
-                        "jitter": getattr(inbound, 'jitter', 0),
-                        # Audio-specific metrics
-                        "total_samples_received": getattr(inbound, 'total_samples_received', 0),
-                        "concealed_samples": getattr(inbound, 'concealed_samples', 0),
-                        "concealment_events": getattr(inbound, 'concealment_events', 0),
-                        "audio_level": getattr(inbound, 'audio_level', 0),
-                        "total_audio_energy": getattr(inbound, 'total_audio_energy', 0),
-                        "total_samples_duration": getattr(inbound, 'total_samples_duration', 0),
-                        "jitter_buffer_delay": getattr(inbound, 'jitter_buffer_delay', 0),
-                        "jitter_buffer_target_delay": getattr(inbound, 'jitter_buffer_target_delay', 0),
-                        "jitter_buffer_emitted_count": getattr(inbound, 'jitter_buffer_emitted_count', 0),
-                        # Video-specific metrics  
-                        "frames_decoded": getattr(inbound, 'frames_decoded', 0),
-                        "frames_dropped": getattr(inbound, 'frames_dropped', 0),
-                        "frames_rendered": getattr(inbound, 'frames_rendered', 0),
-                        "key_frames_decoded": getattr(inbound, 'key_frames_decoded', 0),
-                        "frame_width": getattr(inbound, 'frame_width', 0),
-                        "frame_height": getattr(inbound, 'frame_height', 0),
-                        "frames_per_second": getattr(inbound, 'frames_per_second', 0),
-                        # Network quality metrics
-                        "nack_count": getattr(inbound, 'nack_count', 0),
-                        "fir_count": getattr(inbound, 'fir_count', 0),
-                        "pli_count": getattr(inbound, 'pli_count', 0),
-                        "packets_discarded": getattr(inbound, 'packets_discarded', 0),
-                        "retransmitted_packets_received": getattr(inbound, 'retransmitted_packets_received', 0),
-                        "retransmitted_bytes_received": getattr(inbound, 'retransmitted_bytes_received', 0),
-                    })
-                    
-            elif stat_type == 'candidate_pair' and hasattr(stat, 'candidate_pair'):
+                    stat_info.update(
+                        {
+                            "packets_received": getattr(inbound, "packets_received", 0),
+                            "bytes_received": getattr(inbound, "bytes_received", 0),
+                            "packets_lost": getattr(inbound, "packets_lost", 0),
+                            "jitter": getattr(inbound, "jitter", 0),
+                            # Audio-specific metrics
+                            "total_samples_received": getattr(inbound, "total_samples_received", 0),
+                            "concealed_samples": getattr(inbound, "concealed_samples", 0),
+                            "concealment_events": getattr(inbound, "concealment_events", 0),
+                            "audio_level": getattr(inbound, "audio_level", 0),
+                            "total_audio_energy": getattr(inbound, "total_audio_energy", 0),
+                            "total_samples_duration": getattr(inbound, "total_samples_duration", 0),
+                            "jitter_buffer_delay": getattr(inbound, "jitter_buffer_delay", 0),
+                            "jitter_buffer_target_delay": getattr(
+                                inbound, "jitter_buffer_target_delay", 0
+                            ),
+                            "jitter_buffer_emitted_count": getattr(
+                                inbound, "jitter_buffer_emitted_count", 0
+                            ),
+                            # Video-specific metrics
+                            "frames_decoded": getattr(inbound, "frames_decoded", 0),
+                            "frames_dropped": getattr(inbound, "frames_dropped", 0),
+                            "frames_rendered": getattr(inbound, "frames_rendered", 0),
+                            "key_frames_decoded": getattr(inbound, "key_frames_decoded", 0),
+                            "frame_width": getattr(inbound, "frame_width", 0),
+                            "frame_height": getattr(inbound, "frame_height", 0),
+                            "frames_per_second": getattr(inbound, "frames_per_second", 0),
+                            # Network quality metrics
+                            "nack_count": getattr(inbound, "nack_count", 0),
+                            "fir_count": getattr(inbound, "fir_count", 0),
+                            "pli_count": getattr(inbound, "pli_count", 0),
+                            "packets_discarded": getattr(inbound, "packets_discarded", 0),
+                            "retransmitted_packets_received": getattr(
+                                inbound, "retransmitted_packets_received", 0
+                            ),
+                            "retransmitted_bytes_received": getattr(
+                                inbound, "retransmitted_bytes_received", 0
+                            ),
+                        }
+                    )
+
+            elif stat_type == "candidate_pair" and hasattr(stat, "candidate_pair"):
                 # Add network connectivity stats
                 pair_stats = stat.candidate_pair
-                if hasattr(pair_stats, 'candidate_pair'):
+                if hasattr(pair_stats, "candidate_pair"):
                     pair_data = pair_stats.candidate_pair
-                    stat_info.update({
-                        "bytes_sent": getattr(pair_data, 'bytes_sent', 0),
-                        "bytes_received": getattr(pair_data, 'bytes_received', 0),
-                        "packets_sent": getattr(pair_data, 'packets_sent', 0),
-                        "packets_received": getattr(pair_data, 'packets_received', 0),
-                        "current_round_trip_time": getattr(pair_data, 'current_round_trip_time', 0),
-                        "total_round_trip_time": getattr(pair_data, 'total_round_trip_time', 0),
-                        "available_outgoing_bitrate": getattr(pair_data, 'available_outgoing_bitrate', 0),
-                        "available_incoming_bitrate": getattr(pair_data, 'available_incoming_bitrate', 0),
-                        "nominated": getattr(pair_data, 'nominated', False),
-                        "state": getattr(pair_data, 'state', 0),
-                        "requests_sent": getattr(pair_data, 'requests_sent', 0),
-                        "responses_received": getattr(pair_data, 'responses_received', 0),
-                        "packets_discarded_on_send": getattr(pair_data, 'packets_discarded_on_send', 0),
-                    })
-                    
-            elif stat_type == 'transport' and hasattr(stat, 'transport'):
+                    stat_info.update(
+                        {
+                            "bytes_sent": getattr(pair_data, "bytes_sent", 0),
+                            "bytes_received": getattr(pair_data, "bytes_received", 0),
+                            "packets_sent": getattr(pair_data, "packets_sent", 0),
+                            "packets_received": getattr(pair_data, "packets_received", 0),
+                            "current_round_trip_time": getattr(
+                                pair_data, "current_round_trip_time", 0
+                            ),
+                            "total_round_trip_time": getattr(pair_data, "total_round_trip_time", 0),
+                            "available_outgoing_bitrate": getattr(
+                                pair_data, "available_outgoing_bitrate", 0
+                            ),
+                            "available_incoming_bitrate": getattr(
+                                pair_data, "available_incoming_bitrate", 0
+                            ),
+                            "nominated": getattr(pair_data, "nominated", False),
+                            "state": getattr(pair_data, "state", 0),
+                            "requests_sent": getattr(pair_data, "requests_sent", 0),
+                            "responses_received": getattr(pair_data, "responses_received", 0),
+                            "packets_discarded_on_send": getattr(
+                                pair_data, "packets_discarded_on_send", 0
+                            ),
+                        }
+                    )
+
+            elif stat_type == "transport" and hasattr(stat, "transport"):
                 # Add transport-level stats
                 stat_info["connection_type"] = "subscriber"
-            
+
             # Only include meaningful stats
-            if stat_type in ['inbound_rtp', 'candidate_pair', 'transport', 'peer_connection']:
+            if stat_type in ["inbound_rtp", "candidate_pair", "transport", "peer_connection"]:
                 stats_dict["subscriber_stats"].append(stat_info)
-        
+
         return stats_dict, latency
 
 

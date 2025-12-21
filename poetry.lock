@@ -552,33 +552,33 @@ types-protobuf = ">=3"
 
 [[package]]
 name = "livekit-api"
-version = "1.0.7"
+version = "1.1.0"
 description = "Python Server API for LiveKit"
 optional = false
 python-versions = ">=3.9.0"
 groups = ["main"]
 files = [
-    {file = "livekit_api-1.0.7-py3-none-any.whl", hash = "sha256:517eb61028a858f2a245f17f900e4c1eee4638a536bfb0f94728673d35c8970e"},
-    {file = "livekit_api-1.0.7.tar.gz", hash = "sha256:f98820d26773c56fb10c72534c98ac1d386b905faa3de8a277251056f2405518"},
+    {file = "livekit_api-1.1.0-py3-none-any.whl", hash = "sha256:bfc1c2c65392eb3f580a2c28108269f0e79873f053578a677eee7bb1de8aa8fb"},
+    {file = "livekit_api-1.1.0.tar.gz", hash = "sha256:f94c000534d3a9b506e6aed2f35eb88db1b23bdea33bb322f0144c4e9f73934e"},
 ]
 
 [package.dependencies]
 aiohttp = ">=3.9.0"
-livekit-protocol = ">=1.0.4,<2.0.0"
+livekit-protocol = ">=1.1.1,<2.0.0"
 protobuf = ">=4"
 pyjwt = ">=2.0.0"
 types-protobuf = ">=4"
 
 [[package]]
 name = "livekit-protocol"
-version = "1.0.8"
+version = "1.1.1"
 description = "Python protocol stubs for LiveKit"
 optional = false
 python-versions = ">=3.7.0"
 groups = ["main"]
 files = [
-    {file = "livekit_protocol-1.0.8-py3-none-any.whl", hash = "sha256:77fb929589728949d2b4bc50874e260f1fc1a6dcf0f1e6f37095c8ffdc246556"},
-    {file = "livekit_protocol-1.0.8.tar.gz", hash = "sha256:735e9b8825ccfebdcfa6db8d1a007b12db6bc1558304be803b672a504207c814"},
+    {file = "livekit_protocol-1.1.1-py3-none-any.whl", hash = "sha256:c7fd39787d2ce4d6a7526bdf3feed63142f0a7b8838b51d27f81fd80f1d5ac9e"},
+    {file = "livekit_protocol-1.1.1.tar.gz", hash = "sha256:7c1dca659a12304fbf86f799d71412b8dce3c97e28d3fcc991f93b5a68ba3dc3"},
 ]
 
 [package.dependencies]
@@ -1717,4 +1717,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "27860989a3224338428d2eee6bdd74ed965c293d35f096d1771104ce25320959"
+content-hash = "fb9c0ff77105653299d5c43422a5e4d873c8845508d9b4c6d70d6ca7df004c16"
