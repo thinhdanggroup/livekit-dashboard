@@ -101,8 +101,9 @@
         <!-- Flash Messages -->
         {% if flash_message %}
         <div class="container mt-3">
-            <div class="alert alert-{{ flash_type or 'info' }}">
+            <div class="alert alert-{{ flash_type or 'info' }} alert-dismissible fade show" role="alert">
                 {{ flash_message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
         </div>
         {% endif %}

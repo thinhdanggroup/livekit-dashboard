@@ -470,12 +470,16 @@ async def create_dispatch_rule(
     csrf_token: str = Form(...),
     rule_name: Optional[str] = Form(None),
     trunk_ids: Optional[str] = Form(None),
+    dispatch_rule_type: str = Form("direct"),
     room_name: Optional[str] = Form(None),
+    room_prefix: Optional[str] = Form(None),
     pin: Optional[str] = Form(None),
+    randomize: bool = Form(False),
     hide_phone_number: bool = Form(False),
     agent_name: Optional[str] = Form(None),
     agent_metadata: Optional[str] = Form(None),
     metadata: Optional[str] = Form(None),
+    plain_json: Optional[str] = Form(None),
     lk: LiveKitClient = Depends(get_livekit_client),
 ):
     """Create a new SIP dispatch rule"""
@@ -493,12 +497,16 @@ async def create_dispatch_rule(
         result = await lk.create_sip_dispatch_rule(
             name=rule_name,
             trunk_ids=trunk_ids_list,
+            dispatch_rule_type=dispatch_rule_type,
             room_name=room_name,
+            room_prefix=room_prefix,
             pin=pin,
+            randomize=randomize,
             hide_phone_number=hide_phone_number,
             agent_name=agent_name,
             agent_metadata=agent_metadata,
             metadata=metadata,
+            plain_json=plain_json,
         )
 
         # Success message
@@ -508,12 +516,23 @@ async def create_dispatch_rule(
             url=f"/sip-inbound?flash_message={success_msg}&flash_type=success", status_code=303
         )
     except Exception as e:
+        # Extract user-friendly error message
         error_msg = str(e)
+        if hasattr(e, 'message'):
+            error_msg = e.message
+        elif hasattr(e, 'args') and e.args:
+            error_msg = str(e.args[0])
+        
         print(f"Error creating SIP dispatch rule: {e}")
         import traceback
         traceback.print_exc()
 
-        # Error message
+        # Error message - make it more user-friendly
+        if "missing rule" in error_msg.lower():
+            error_msg = "Invalid dispatch rule configuration. Please check your settings."
+        elif "invalid_argument" in error_msg.lower():
+            error_msg = "Invalid configuration. Please verify all required fields are filled."
+        
         encoded_error = quote(f"Failed to create dispatch rule: {error_msg}")
         return RedirectResponse(
             url=f"/sip-inbound?flash_message={encoded_error}&flash_type=danger", status_code=303
@@ -527,12 +546,16 @@ async def update_dispatch_rule(
     sip_dispatch_rule_id: str = Form(...),
     rule_name: Optional[str] = Form(None),
     trunk_ids: Optional[str] = Form(None),
+    dispatch_rule_type: Optional[str] = Form(None),
     room_name: Optional[str] = Form(None),
+    room_prefix: Optional[str] = Form(None),
     pin: Optional[str] = Form(None),
+    randomize: bool = Form(False),
     hide_phone_number: bool = Form(False),
     agent_name: Optional[str] = Form(None),
     agent_metadata: Optional[str] = Form(None),
     metadata: Optional[str] = Form(None),
+    plain_json: Optional[str] = Form(None),
     lk: LiveKitClient = Depends(get_livekit_client),
 ):
     """Update an existing SIP dispatch rule"""
@@ -551,12 +574,16 @@ async def update_dispatch_rule(
             sip_dispatch_rule_id=sip_dispatch_rule_id,
             name=rule_name,
             trunk_ids=trunk_ids_list,
+            dispatch_rule_type=dispatch_rule_type,
             room_name=room_name,
+            room_prefix=room_prefix,
             pin=pin,
+            randomize=randomize,
             hide_phone_number=hide_phone_number,
             agent_name=agent_name,
             agent_metadata=agent_metadata,
             metadata=metadata,
+            plain_json=plain_json,
         )
 
         # Success message
