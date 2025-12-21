@@ -1,6 +1,7 @@
 """LiveKit SDK Client Wrapper - Pure Async Version"""
 
 import asyncio
+import base64
 import json
 import os
 import time
@@ -268,6 +269,68 @@ class LiveKitClient:
             print(f"Error listing SIP inbound trunks: {e}")
             return []
 
+    def _rule_to_json(self, rule) -> str:
+        """Convert a SIPDispatchRuleInfo to JSON string"""
+        try:
+            rule_json = {}
+
+            # Build rule object
+            if hasattr(rule, "rule") and rule.rule:
+                rule_obj = rule.rule
+                if hasattr(rule_obj, "HasField"):
+                    if rule_obj.HasField("dispatch_rule_direct"):
+                        rule_json["rule"] = {
+                            "dispatch_rule_direct": {
+                                "room_name": rule_obj.dispatch_rule_direct.room_name or "",
+                                "pin": rule_obj.dispatch_rule_direct.pin or "",
+                            }
+                        }
+                    elif rule_obj.HasField("dispatch_rule_individual"):
+                        rule_json["rule"] = {
+                            "dispatch_rule_individual": {
+                                "room_prefix": rule_obj.dispatch_rule_individual.room_prefix or "",
+                                "pin": rule_obj.dispatch_rule_individual.pin or "",
+                            }
+                        }
+                    elif rule_obj.HasField("dispatch_rule_callee"):
+                        rule_json["rule"] = {
+                            "dispatch_rule_callee": {
+                                "room_prefix": rule_obj.dispatch_rule_callee.room_prefix or "",
+                                "pin": rule_obj.dispatch_rule_callee.pin or "",
+                                "randomize": rule_obj.dispatch_rule_callee.randomize,
+                            }
+                        }
+
+            # Add other fields
+            if hasattr(rule, "name") and rule.name:
+                rule_json["name"] = rule.name
+            if hasattr(rule, "trunk_ids") and rule.trunk_ids:
+                rule_json["trunk_ids"] = list(rule.trunk_ids)
+            if hasattr(rule, "hide_phone_number"):
+                rule_json["hide_phone_number"] = rule.hide_phone_number
+            if hasattr(rule, "metadata") and rule.metadata:
+                rule_json["metadata"] = rule.metadata
+            if hasattr(rule, "attributes") and rule.attributes:
+                # Convert protobuf Map to dict
+                rule_json["attributes"] = dict(rule.attributes)
+            if (
+                hasattr(rule, "room_config")
+                and rule.room_config
+                and hasattr(rule.room_config, "agents")
+            ):
+                agents = []
+                for agent in rule.room_config.agents:
+                    agents.append(
+                        {"agent_name": agent.agent_name or "", "metadata": agent.metadata or ""}
+                    )
+                if agents:
+                    rule_json["room_config"] = {"agents": agents}
+
+            return json.dumps(rule_json, indent=2)
+        except Exception as e:
+            print(f"Error converting rule to JSON: {e}")
+            return "{}"
+
     async def list_sip_dispatch_rules(self):
         """List SIP dispatch rules"""
         if not self.sip_enabled:
@@ -276,9 +339,62 @@ class LiveKitClient:
             lk = await self._get_api()
             req = api.ListSIPDispatchRuleRequest()
             resp = await lk.sip.list_dispatch_rule(req)
-            return list(resp.items) if hasattr(resp, "items") else []
+            rules = list(resp.items) if hasattr(resp, "items") else []
+
+            # Create a wrapper class to add rule_type without modifying protobuf objects
+            class RuleWrapper:
+                def __init__(self, rule, rule_type, rule_json):
+                    self._rule = rule
+                    self.rule_type = rule_type
+                    self.rule_json = rule_json
+
+                def __getattr__(self, name):
+                    # Delegate all other attribute access to the original rule object
+                    return getattr(self._rule, name)
+
+            # Determine rule type for each rule and wrap
+            wrapped_rules = []
+            for rule in rules:
+                rule_type = "unknown"
+                if hasattr(rule, "rule") and rule.rule:
+                    rule_obj = rule.rule
+                    # Determine which rule type is set using HasField for protobuf oneof
+                    if hasattr(rule_obj, "HasField"):
+                        if rule_obj.HasField("dispatch_rule_direct"):
+                            rule_type = "direct"
+                        elif rule_obj.HasField("dispatch_rule_individual"):
+                            rule_type = "individual"
+                        elif rule_obj.HasField("dispatch_rule_callee"):
+                            rule_type = "callee"
+                    # Fallback: check if attribute exists and is not None/empty
+                    elif (
+                        hasattr(rule_obj, "dispatch_rule_direct")
+                        and rule_obj.dispatch_rule_direct is not None
+                    ):
+                        rule_type = "direct"
+                    elif (
+                        hasattr(rule_obj, "dispatch_rule_individual")
+                        and rule_obj.dispatch_rule_individual is not None
+                    ):
+                        rule_type = "individual"
+                    elif (
+                        hasattr(rule_obj, "dispatch_rule_callee")
+                        and rule_obj.dispatch_rule_callee is not None
+                    ):
+                        rule_type = "callee"
+
+                # Convert rule to JSON and encode as base64 for safe HTML attribute storage
+                rule_json = self._rule_to_json(rule)
+                rule_json_b64 = (
+                    base64.b64encode(rule_json.encode("utf-8")).decode("utf-8") if rule_json else ""
+                )
+                wrapped_rules.append(RuleWrapper(rule, rule_type, rule_json_b64))
+            return wrapped_rules
         except Exception as e:
             print(f"Error listing SIP dispatch rules: {e}")
+            import traceback
+
+            traceback.print_exc()
             return []
 
     async def create_sip_participant(
@@ -553,6 +669,7 @@ class LiveKitClient:
         lk = await self._get_api()
 
         # If plain_json is provided, parse it and use it directly
+        print(f"DEBUG: plain_json: {plain_json}")
         if plain_json:
             try:
                 json_data = json.loads(plain_json)
@@ -560,7 +677,7 @@ class LiveKitClient:
                 rule = self._build_rule_from_json(json_data)
                 # Build rule_info from JSON
                 rule_info = self._build_rule_info_from_json(json_data, rule)
-                
+
                 req = api.CreateSIPDispatchRuleRequest(
                     rule=rule,
                     dispatch_rule=rule_info,
@@ -572,6 +689,7 @@ class LiveKitClient:
                 raise ValueError(f"Error parsing JSON: {str(e)}")
 
         # Build dispatch rule based on type
+        print(f"DEBUG: dispatch_rule_type: {dispatch_rule_type}")
         if dispatch_rule_type == "direct":
             # Direct dispatch: route to a specific room
             direct_rule = api.SIPDispatchRuleDirect(
@@ -634,7 +752,7 @@ class LiveKitClient:
     def _build_rule_from_json(self, json_data: Dict[str, Any]) -> api.SIPDispatchRule:
         """Build SIPDispatchRule from JSON data"""
         rule_data = json_data.get("rule", {})
-        
+
         # Check for dispatch rule types
         if "dispatch_rule_direct" in rule_data:
             direct_data = rule_data["dispatch_rule_direct"]
@@ -659,14 +777,18 @@ class LiveKitClient:
             )
             return api.SIPDispatchRule(dispatch_rule_callee=callee_rule)
         else:
-            raise ValueError("JSON must contain one of: dispatch_rule_direct, dispatch_rule_individual, or dispatch_rule_callee")
+            raise ValueError(
+                "JSON must contain one of: dispatch_rule_direct, dispatch_rule_individual, or dispatch_rule_callee"
+            )
 
-    def _build_rule_info_from_json(self, json_data: Dict[str, Any], rule: api.SIPDispatchRule) -> api.SIPDispatchRuleInfo:
+    def _build_rule_info_from_json(
+        self, json_data: Dict[str, Any], rule: api.SIPDispatchRule
+    ) -> api.SIPDispatchRuleInfo:
         """Build SIPDispatchRuleInfo from JSON data"""
         rule_info_params: Dict[str, Any] = {
             "rule": rule,
         }
-        
+
         if "name" in json_data:
             rule_info_params["name"] = json_data["name"]
         if "trunk_ids" in json_data:
@@ -688,7 +810,7 @@ class LiveKitClient:
                     )
                     agents.append(agent)
             rule_info_params["room_config"] = api.RoomConfiguration(agents=agents)
-        
+
         return api.SIPDispatchRuleInfo(**rule_info_params)
 
     async def update_sip_dispatch_rule(
@@ -728,6 +850,7 @@ class LiveKitClient:
         lk = await self._get_api()
 
         # If plain_json is provided, parse it and use it directly
+        print(f"DEBUG: plain_json: {plain_json}")
         if plain_json:
             try:
                 json_data = json.loads(plain_json)
@@ -753,9 +876,9 @@ class LiveKitClient:
                     rule_info_params_json["hide_phone_number"] = rule_info_json.hide_phone_number
                 if hasattr(rule_info_json, "room_config") and rule_info_json.room_config:
                     rule_info_params_json["room_config"] = rule_info_json.room_config
-                
+
                 rule_info = api.SIPDispatchRuleInfo(**rule_info_params_json)
-                
+
                 return await lk.sip.update_dispatch_rule(
                     rule_id=sip_dispatch_rule_id,
                     rule=rule_info,
@@ -767,6 +890,7 @@ class LiveKitClient:
 
         # Build dispatch rule based on type
         # If dispatch_rule_type is provided, set the appropriate rule type
+        print(f"DEBUG: dispatch_rule_type: {dispatch_rule_type}")
         if dispatch_rule_type:
             if dispatch_rule_type == "direct":
                 # Direct dispatch: route to a specific room
@@ -782,6 +906,7 @@ class LiveKitClient:
                     pin=pin or "",
                 )
                 rule = api.SIPDispatchRule(dispatch_rule_individual=individual_rule)
+                print(f"DEBUG: individual_rule: {individual_rule}")
             elif dispatch_rule_type == "callee":
                 # Callee dispatch: route based on called number
                 callee_rule = api.SIPDispatchRuleCallee(

@@ -9,14 +9,6 @@
 {% endblock %}
 
 {% block content %}
-<!-- Flash Messages -->
-{% if flash_message %}
-<div class="alert alert-{{ flash_type or 'info' }} alert-dismissible fade show" role="alert">
-    {{ flash_message }}
-    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-</div>
-{% endif %}
-
 <!-- Stats -->
 <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
     <div class="stat-card">
@@ -179,11 +171,11 @@
                             <strong style="color: var(--text-primary);">{{ rule.name or 'Unnamed' }}</strong>
                         </td>
                         <td>
-                            {% if rule.rule and rule.rule.dispatch_rule_direct %}
+                            {% if rule.rule_type == 'direct' %}
                             <span class="badge badge-primary">Direct</span>
-                            {% elif rule.rule and rule.rule.dispatch_rule_individual %}
+                            {% elif rule.rule_type == 'individual' %}
                             <span class="badge badge-info">Individual</span>
-                            {% elif rule.rule and rule.rule.dispatch_rule_callee %}
+                            {% elif rule.rule_type == 'callee' %}
                             <span class="badge badge-success">Callee</span>
                             {% else %}
                             <span class="badge badge-secondary">Unknown</span>
@@ -199,19 +191,33 @@
                             {% endif %}
                         </td>
                         <td>
-                            {% if rule.rule and rule.rule.dispatch_rule_direct %}
-                            <span style="color: var(--text-secondary);">{{ rule.rule.dispatch_rule_direct.room_name or '-' }}</span>
+                            {% if rule.rule %}
+                                {% set rule_obj = rule.rule %}
+                                {% if rule_obj.dispatch_rule_direct is not none %}
+                                <span style="color: var(--text-secondary);">{{ rule_obj.dispatch_rule_direct.room_name or '-' }}</span>
+                                {% elif rule_obj.dispatch_rule_individual is not none %}
+                                <span style="color: var(--text-secondary);">{{ rule_obj.dispatch_rule_individual.room_prefix or '-' }}</span>
+                                {% elif rule_obj.dispatch_rule_callee is not none %}
+                                <span style="color: var(--text-secondary);">{{ rule_obj.dispatch_rule_callee.room_prefix or '-' }}</span>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
                             {% else %}
                             <span class="text-muted">-</span>
                             {% endif %}
                         </td>
                         <td>
-                            {% if rule.rule and rule.rule.dispatch_rule_direct and rule.rule.dispatch_rule_direct.pin %}
-                            <span class="badge badge-secondary">{{ rule.rule.dispatch_rule_direct.pin }}</span>
-                            {% elif rule.rule and rule.rule.dispatch_rule_individual and rule.rule.dispatch_rule_individual.pin %}
-                            <span class="badge badge-secondary">{{ rule.rule.dispatch_rule_individual.pin }}</span>
-                            {% elif rule.rule and rule.rule.dispatch_rule_callee and rule.rule.dispatch_rule_callee.pin %}
-                            <span class="badge badge-secondary">{{ rule.rule.dispatch_rule_callee.pin }}</span>
+                            {% if rule.rule %}
+                                {% set rule_obj = rule.rule %}
+                                {% if rule_obj.dispatch_rule_direct is not none and rule_obj.dispatch_rule_direct.pin %}
+                                <span class="badge badge-secondary">{{ rule_obj.dispatch_rule_direct.pin }}</span>
+                                {% elif rule_obj.dispatch_rule_individual is not none and rule_obj.dispatch_rule_individual.pin %}
+                                <span class="badge badge-secondary">{{ rule_obj.dispatch_rule_individual.pin }}</span>
+                                {% elif rule_obj.dispatch_rule_callee is not none and rule_obj.dispatch_rule_callee.pin %}
+                                <span class="badge badge-secondary">{{ rule_obj.dispatch_rule_callee.pin }}</span>
+                                {% else %}
+                                <span class="text-muted">No PIN</span>
+                                {% endif %}
                             {% else %}
                             <span class="text-muted">No PIN</span>
                             {% endif %}
@@ -234,7 +240,29 @@
                         </td>
                         <td>
                             <div class="btn-group btn-group-sm" role="group">
-                                <button class="btn btn-outline-primary" onclick="editRule('{{ rule.sip_dispatch_rule_id }}', '{{ rule.name or '' }}', '{{ rule.trunk_ids|join(',') if rule.trunk_ids else '' }}', '{{ 'direct' if (rule.rule and rule.rule.dispatch_rule_direct) else ('individual' if (rule.rule and rule.rule.dispatch_rule_individual) else 'callee') }}', '{{ rule.rule.dispatch_rule_direct.room_name if (rule.rule and rule.rule.dispatch_rule_direct) else (rule.rule.dispatch_rule_individual.room_prefix if (rule.rule and rule.rule.dispatch_rule_individual) else (rule.rule.dispatch_rule_callee.room_prefix if (rule.rule and rule.rule.dispatch_rule_callee) else '')) }}', '{{ rule.rule.dispatch_rule_direct.pin if (rule.rule and rule.rule.dispatch_rule_direct) else (rule.rule.dispatch_rule_individual.pin if (rule.rule and rule.rule.dispatch_rule_individual) else (rule.rule.dispatch_rule_callee.pin if (rule.rule and rule.rule.dispatch_rule_callee) else '')) }}', {{ 'true' if rule.hide_phone_number else 'false' }}, '{{ rule.metadata or '' }}', '{{ rule.room_config.agents[0].agent_name if rule.room_config and rule.room_config.agents and rule.room_config.agents|length > 0 else '' }}', '{{ rule.room_config.agents[0].metadata if rule.room_config and rule.room_config.agents and rule.room_config.agents|length > 0 else '' }}', '{{ rule.rule.dispatch_rule_individual.room_prefix if (rule.rule and rule.rule.dispatch_rule_individual) else (rule.rule.dispatch_rule_callee.room_prefix if (rule.rule and rule.rule.dispatch_rule_callee) else '') }}', {{ 'true' if (rule.rule and rule.rule.dispatch_rule_callee and rule.rule.dispatch_rule_callee.randomize) else 'false' }})">
+                                {% set rule_obj = rule.rule if rule.rule else none %}
+                                {% set rule_type = rule.rule_type if rule.rule_type else 'direct' %}
+                                {# Extract values based on rule_type for more reliable data extraction #}
+                                {% set randomize_value = 'false' %}
+                                {% if rule_type == 'direct' and rule_obj and rule_obj.dispatch_rule_direct is not none %}
+                                    {% set room_name_or_prefix = rule_obj.dispatch_rule_direct.room_name or '' %}
+                                    {% set pin_value = rule_obj.dispatch_rule_direct.pin or '' %}
+                                    {% set room_prefix_value = '' %}
+                                {% elif rule_type == 'individual' and rule_obj and rule_obj.dispatch_rule_individual is not none %}
+                                    {% set room_name_or_prefix = rule_obj.dispatch_rule_individual.room_prefix or '' %}
+                                    {% set pin_value = rule_obj.dispatch_rule_individual.pin or '' %}
+                                    {% set room_prefix_value = rule_obj.dispatch_rule_individual.room_prefix or '' %}
+                                {% elif rule_type == 'callee' and rule_obj and rule_obj.dispatch_rule_callee is not none %}
+                                    {% set room_name_or_prefix = rule_obj.dispatch_rule_callee.room_prefix or '' %}
+                                    {% set pin_value = rule_obj.dispatch_rule_callee.pin or '' %}
+                                    {% set room_prefix_value = rule_obj.dispatch_rule_callee.room_prefix or '' %}
+                                    {% set randomize_value = 'true' if rule_obj.dispatch_rule_callee.randomize else 'false' %}
+                                {% else %}
+                                    {% set room_name_or_prefix = '' %}
+                                    {% set pin_value = '' %}
+                                    {% set room_prefix_value = '' %}
+                                {% endif %}
+                                <button class="btn btn-outline-primary" data-rule-json="{{ rule.rule_json|e if rule.rule_json else '' }}" onclick="editRule('{{ rule.sip_dispatch_rule_id }}', '{{ rule.name or '' }}', '{{ rule.trunk_ids|join(',') if rule.trunk_ids else '' }}', '{{ rule_type }}', '{{ room_name_or_prefix }}', '{{ pin_value }}', {{ 'true' if rule.hide_phone_number else 'false' }}, '{{ rule.metadata or '' }}', '{{ rule.room_config.agents[0].agent_name if rule.room_config and rule.room_config.agents and rule.room_config.agents|length > 0 else '' }}', '{{ rule.room_config.agents[0].metadata if rule.room_config and rule.room_config.agents and rule.room_config.agents|length > 0 else '' }}', '{{ room_prefix_value }}', {{ randomize_value }}, this)">
                                     <i class="bi bi-pencil"></i>
                                 </button>
                                 <button class="btn btn-outline-danger" onclick="confirmDeleteRule('{{ rule.sip_dispatch_rule_id }}', '{{ rule.name or 'Unnamed' }}')">
@@ -1295,7 +1323,20 @@ function buildRuleJson(dispatchRuleType, roomNameOrPrefix, pin, roomPrefix, rand
 }
 
 // Edit Rule
-function editRule(ruleId, name, trunkIds, dispatchRuleType, roomNameOrPrefix, pin, hidePhoneNumber, metadata, agentName, agentMetadata, roomPrefix, randomize) {
+function editRule(ruleId, name, trunkIds, dispatchRuleType, roomNameOrPrefix, pin, hidePhoneNumber, metadata, agentName, agentMetadata, roomPrefix, randomize, buttonElement) {
+    // Get server JSON from data attribute (base64 encoded)
+    var serverRuleJson = '';
+    if (buttonElement && buttonElement.getAttribute) {
+        var ruleJsonB64 = buttonElement.getAttribute('data-rule-json') || '';
+        if (ruleJsonB64) {
+            try {
+                // Decode base64
+                serverRuleJson = atob(ruleJsonB64);
+            } catch (e) {
+                console.warn('Failed to decode rule JSON:', e);
+            }
+        }
+    }
     document.getElementById('edit_sip_dispatch_rule_id').value = ruleId;
     document.getElementById('edit_rule_name').value = name || '';
     
@@ -1326,10 +1367,12 @@ function editRule(ruleId, name, trunkIds, dispatchRuleType, roomNameOrPrefix, pi
     if (dispatchRuleType === 'direct') {
         document.getElementById('edit_room_name').value = roomNameOrPrefix || '';
     } else if (dispatchRuleType === 'individual') {
-        var prefixValue = roomPrefix || roomNameOrPrefix || '';
+        // For individual, use roomPrefix if available, otherwise use roomNameOrPrefix
+        var prefixValue = (roomPrefix && roomPrefix.trim()) ? roomPrefix : (roomNameOrPrefix || '');
         document.getElementById('edit_room_prefix').value = prefixValue;
     } else if (dispatchRuleType === 'callee') {
-        var prefixValue = roomPrefix || roomNameOrPrefix || '';
+        // For callee, use roomPrefix if available, otherwise use roomNameOrPrefix
+        var prefixValue = (roomPrefix && roomPrefix.trim()) ? roomPrefix : (roomNameOrPrefix || '');
         document.getElementById('edit_callee_room_prefix').value = prefixValue;
         if (randomize !== undefined) {
             document.getElementById('edit_randomize').checked = randomize === true || randomize === 'true';
@@ -1342,8 +1385,23 @@ function editRule(ruleId, name, trunkIds, dispatchRuleType, roomNameOrPrefix, pi
     document.getElementById('edit_agent_metadata').value = agentMetadata || '';
     document.getElementById('edit_rule_metadata').value = metadata || '';
     
-    // Build and populate JSON
-    var ruleJson = buildRuleJson(dispatchRuleType, roomNameOrPrefix, pin, roomPrefix, randomize, name, trunkIds, hidePhoneNumber, metadata, agentName, agentMetadata);
+    // Populate JSON from server data if available, otherwise build from form fields
+    var ruleJson;
+    if (serverRuleJson && serverRuleJson.trim()) {
+        // Use server-provided JSON (more accurate, includes all fields from LiveKit)
+        try {
+            // Parse and re-stringify to ensure valid JSON and proper formatting
+            var parsed = JSON.parse(serverRuleJson);
+            ruleJson = JSON.stringify(parsed, null, 2);
+        } catch (e) {
+            // If parsing fails, fall back to building from form fields
+            console.warn('Failed to parse server JSON, using form fields:', e);
+            ruleJson = buildRuleJson(dispatchRuleType, roomNameOrPrefix, pin, roomPrefix, randomize, name, trunkIds, hidePhoneNumber, metadata, agentName, agentMetadata);
+        }
+    } else {
+        // Build from form fields
+        ruleJson = buildRuleJson(dispatchRuleType, roomNameOrPrefix, pin, roomPrefix, randomize, name, trunkIds, hidePhoneNumber, metadata, agentName, agentMetadata);
+    }
     document.getElementById('edit_plain_json').value = ruleJson;
     
     var modal = new bootstrap.Modal(document.getElementById('editRuleModal'));
@@ -1365,19 +1423,6 @@ document.addEventListener('DOMContentLoaded', function() {
     updateDispatchRuleFields(false);
     updateDispatchRuleFields(true);
     
-    // Handle tab switching for create rule modal
-    var createFormTab = document.getElementById('create-form-tab');
-    var createJsonTab = document.getElementById('create-json-tab');
-    if (createFormTab && createJsonTab) {
-        createFormTab.addEventListener('shown.bs.tab', function() {
-            // When switching to form tab, ensure form fields are visible
-            updateDispatchRuleFields(false);
-        });
-        createJsonTab.addEventListener('shown.bs.tab', function() {
-            // When switching to JSON tab, nothing special needed
-        });
-    }
-    
     // Handle tab switching for edit rule modal
     var editFormTab = document.getElementById('edit-form-tab');
     var editJsonTab = document.getElementById('edit-json-tab');
@@ -1385,11 +1430,11 @@ document.addEventListener('DOMContentLoaded', function() {
         editFormTab.addEventListener('shown.bs.tab', function() {
             // When switching to form tab, ensure form fields are visible
             updateDispatchRuleFields(true);
-            // Sync form fields to JSON
-            syncFormToJson(true);
+            // Don't auto-sync to JSON - let user manually edit JSON if they want
         });
         editJsonTab.addEventListener('shown.bs.tab', function() {
-            // When switching to JSON tab, nothing special needed
+            // When switching to JSON tab, sync form to JSON for preview
+            syncFormToJson(true);
         });
     }
     
@@ -1400,11 +1445,11 @@ document.addEventListener('DOMContentLoaded', function() {
         createFormTab.addEventListener('shown.bs.tab', function() {
             // When switching to form tab, ensure form fields are visible
             updateDispatchRuleFields(false);
-            // Sync form fields to JSON
-            syncFormToJson(false);
+            // Don't auto-sync to JSON - let user manually edit JSON if they want
         });
         createJsonTab.addEventListener('shown.bs.tab', function() {
-            // When switching to JSON tab, nothing special needed
+            // When switching to JSON tab, sync form to JSON for preview
+            syncFormToJson(false);
         });
     }
     
@@ -1486,6 +1531,18 @@ document.addEventListener('DOMContentLoaded', function() {
     if (createRuleForm) {
         createRuleForm.addEventListener('submit', function(e) {
             updateTrunkIdsHidden(false);
+            // Clear JSON field if user is on form tab (not JSON tab)
+            // Check which tab button is active
+            var createJsonTabButton = document.getElementById('create-json-tab');
+            var isJsonTabActive = createJsonTabButton && createJsonTabButton.classList.contains('active');
+            
+            if (!isJsonTabActive) {
+                // User is on form tab, clear JSON field so backend uses form fields
+                var jsonField = document.getElementById('plain_json');
+                if (jsonField) {
+                    jsonField.value = '';
+                }
+            }
         });
     }
     
@@ -1493,6 +1550,18 @@ document.addEventListener('DOMContentLoaded', function() {
     if (editRuleForm) {
         editRuleForm.addEventListener('submit', function(e) {
             updateTrunkIdsHidden(true);
+            // Clear JSON field if user is on form tab (not JSON tab)
+            // Check which tab button is active
+            var editJsonTabButton = document.getElementById('edit-json-tab');
+            var isJsonTabActive = editJsonTabButton && editJsonTabButton.classList.contains('active');
+            
+            if (!isJsonTabActive) {
+                // User is on form tab, clear JSON field so backend uses form fields
+                var jsonField = document.getElementById('edit_plain_json');
+                if (jsonField) {
+                    jsonField.value = '';
+                }
+            }
         });
     }
 });
