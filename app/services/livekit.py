@@ -531,6 +531,7 @@ class LiveKitClient:
         attributes: Optional[dict] = None,
         agent_name: Optional[str] = None,
         agent_metadata: Optional[str] = None,
+        plain_json: Optional[str] = None,
         **kwargs,
     ):
         """Create a SIP dispatch rule with optional agent configuration
@@ -544,15 +545,33 @@ class LiveKitClient:
             room_prefix: Room prefix for individual/callee dispatch types
             pin: PIN for any dispatch type
             randomize: Whether to randomize room name for callee type
+            plain_json: Optional JSON string to parse and use for rule configuration (takes precedence over other params)
         """
         if not self.sip_enabled:
             raise ValueError("SIP is not enabled")
 
         lk = await self._get_api()
 
-        # Build dispatch rule based on type
-        rule: api.SIPDispatchRule
+        # If plain_json is provided, parse it and use it directly
+        if plain_json:
+            try:
+                json_data = json.loads(plain_json)
+                # Build rule from JSON
+                rule = self._build_rule_from_json(json_data)
+                # Build rule_info from JSON
+                rule_info = self._build_rule_info_from_json(json_data, rule)
+                
+                req = api.CreateSIPDispatchRuleRequest(
+                    rule=rule,
+                    dispatch_rule=rule_info,
+                )
+                return await lk.sip.create_dispatch_rule(req)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Invalid JSON format: {str(e)}")
+            except Exception as e:
+                raise ValueError(f"Error parsing JSON: {str(e)}")
 
+        # Build dispatch rule based on type
         if dispatch_rule_type == "direct":
             # Direct dispatch: route to a specific room
             direct_rule = api.SIPDispatchRuleDirect(
@@ -609,13 +628,68 @@ class LiveKitClient:
         req = api.CreateSIPDispatchRuleRequest(
             rule=rule,
             dispatch_rule=rule_info,
-            trunk_ids=trunk_ids,
-            hide_phone_number=hide_phone_number,
-            name=name,
-            metadata=metadata,
-            attributes=attributes,
         )
         return await lk.sip.create_dispatch_rule(req)
+
+    def _build_rule_from_json(self, json_data: Dict[str, Any]) -> api.SIPDispatchRule:
+        """Build SIPDispatchRule from JSON data"""
+        rule_data = json_data.get("rule", {})
+        
+        # Check for dispatch rule types
+        if "dispatch_rule_direct" in rule_data:
+            direct_data = rule_data["dispatch_rule_direct"]
+            direct_rule = api.SIPDispatchRuleDirect(
+                room_name=direct_data.get("room_name", ""),
+                pin=direct_data.get("pin", ""),
+            )
+            return api.SIPDispatchRule(dispatch_rule_direct=direct_rule)
+        elif "dispatch_rule_individual" in rule_data:
+            individual_data = rule_data["dispatch_rule_individual"]
+            individual_rule = api.SIPDispatchRuleIndividual(
+                room_prefix=individual_data.get("room_prefix", ""),
+                pin=individual_data.get("pin", ""),
+            )
+            return api.SIPDispatchRule(dispatch_rule_individual=individual_rule)
+        elif "dispatch_rule_callee" in rule_data:
+            callee_data = rule_data["dispatch_rule_callee"]
+            callee_rule = api.SIPDispatchRuleCallee(
+                room_prefix=callee_data.get("room_prefix", ""),
+                pin=callee_data.get("pin", ""),
+                randomize=callee_data.get("randomize", False),
+            )
+            return api.SIPDispatchRule(dispatch_rule_callee=callee_rule)
+        else:
+            raise ValueError("JSON must contain one of: dispatch_rule_direct, dispatch_rule_individual, or dispatch_rule_callee")
+
+    def _build_rule_info_from_json(self, json_data: Dict[str, Any], rule: api.SIPDispatchRule) -> api.SIPDispatchRuleInfo:
+        """Build SIPDispatchRuleInfo from JSON data"""
+        rule_info_params: Dict[str, Any] = {
+            "rule": rule,
+        }
+        
+        if "name" in json_data:
+            rule_info_params["name"] = json_data["name"]
+        if "trunk_ids" in json_data:
+            rule_info_params["trunk_ids"] = json_data["trunk_ids"]
+        if "metadata" in json_data:
+            rule_info_params["metadata"] = json_data["metadata"]
+        if "attributes" in json_data:
+            rule_info_params["attributes"] = json_data["attributes"]
+        if "hide_phone_number" in json_data:
+            rule_info_params["hide_phone_number"] = json_data["hide_phone_number"]
+        if "room_config" in json_data:
+            room_config_data = json_data["room_config"]
+            agents = []
+            if "agents" in room_config_data:
+                for agent_data in room_config_data["agents"]:
+                    agent = api.RoomAgentDispatch(
+                        agent_name=agent_data.get("agent_name", ""),
+                        metadata=agent_data.get("metadata", ""),
+                    )
+                    agents.append(agent)
+            rule_info_params["room_config"] = api.RoomConfiguration(agents=agents)
+        
+        return api.SIPDispatchRuleInfo(**rule_info_params)
 
     async def update_sip_dispatch_rule(
         self,
@@ -632,6 +706,7 @@ class LiveKitClient:
         attributes: Optional[dict] = None,
         agent_name: Optional[str] = None,
         agent_metadata: Optional[str] = None,
+        plain_json: Optional[str] = None,
         **kwargs,
     ):
         """Update a SIP dispatch rule with optional agent configuration
@@ -645,15 +720,52 @@ class LiveKitClient:
             room_prefix: Room prefix for individual/callee dispatch types
             pin: PIN for any dispatch type
             randomize: Whether to randomize room name for callee type
+            plain_json: Optional JSON string to parse and use for rule configuration (takes precedence over other params)
         """
         if not self.sip_enabled:
             raise ValueError("SIP is not enabled")
 
         lk = await self._get_api()
 
-        # Build dispatch rule based on type
-        rule: api.SIPDispatchRule
+        # If plain_json is provided, parse it and use it directly
+        if plain_json:
+            try:
+                json_data = json.loads(plain_json)
+                # Build rule from JSON
+                rule = self._build_rule_from_json(json_data)
+                # Build rule_info from JSON and add sip_dispatch_rule_id
+                rule_info_json = self._build_rule_info_from_json(json_data, rule)
+                # Create new rule_info with sip_dispatch_rule_id
+                rule_info_params_json: Dict[str, Any] = {
+                    "sip_dispatch_rule_id": sip_dispatch_rule_id,
+                    "rule": rule,
+                }
+                # Copy fields from rule_info_json
+                if hasattr(rule_info_json, "name") and rule_info_json.name:
+                    rule_info_params_json["name"] = rule_info_json.name
+                if hasattr(rule_info_json, "trunk_ids") and rule_info_json.trunk_ids:
+                    rule_info_params_json["trunk_ids"] = list(rule_info_json.trunk_ids)
+                if hasattr(rule_info_json, "metadata") and rule_info_json.metadata:
+                    rule_info_params_json["metadata"] = rule_info_json.metadata
+                if hasattr(rule_info_json, "attributes") and rule_info_json.attributes:
+                    rule_info_params_json["attributes"] = dict(rule_info_json.attributes)
+                if hasattr(rule_info_json, "hide_phone_number"):
+                    rule_info_params_json["hide_phone_number"] = rule_info_json.hide_phone_number
+                if hasattr(rule_info_json, "room_config") and rule_info_json.room_config:
+                    rule_info_params_json["room_config"] = rule_info_json.room_config
+                
+                rule_info = api.SIPDispatchRuleInfo(**rule_info_params_json)
+                
+                return await lk.sip.update_dispatch_rule(
+                    rule_id=sip_dispatch_rule_id,
+                    rule=rule_info,
+                )
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Invalid JSON format: {str(e)}")
+            except Exception as e:
+                raise ValueError(f"Error parsing JSON: {str(e)}")
 
+        # Build dispatch rule based on type
         # If dispatch_rule_type is provided, set the appropriate rule type
         if dispatch_rule_type:
             if dispatch_rule_type == "direct":
@@ -675,7 +787,7 @@ class LiveKitClient:
                 callee_rule = api.SIPDispatchRuleCallee(
                     room_prefix=room_prefix or "",
                     pin=pin or "",
-                    randomize=randomize,
+                    randomize=randomize if randomize is not None else False,
                 )
                 rule = api.SIPDispatchRule(dispatch_rule_callee=callee_rule)
             else:
@@ -705,8 +817,7 @@ class LiveKitClient:
         if metadata is not None:
             rule_info_params["metadata"] = metadata
         if attributes is not None:
-            for key, value in attributes.items():
-                rule_info_params["attributes"][key] = value
+            rule_info_params["attributes"] = attributes
         if hide_phone_number is not None:
             rule_info_params["hide_phone_number"] = hide_phone_number
 

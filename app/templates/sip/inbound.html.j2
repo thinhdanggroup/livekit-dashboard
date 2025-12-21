@@ -162,9 +162,18 @@
                     {% for rule in rules %}
                     <tr>
                         <td>
-                            <code style="color: var(--text-secondary); background-color: var(--bg-tertiary); padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-size: 0.8125rem;">
-                                {{ rule.sip_dispatch_rule_id[:16] }}...
-                            </code>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <code style="color: var(--text-secondary); background-color: var(--bg-tertiary); padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-size: 0.8125rem;">
+                                    {{ rule.sip_dispatch_rule_id[:16] }}...
+                                </code>
+                                <button 
+                                    class="btn btn-sm btn-outline-secondary" 
+                                    onclick="copyRuleId('{{ rule.sip_dispatch_rule_id }}', this)"
+                                    title="Copy rule ID"
+                                    style="padding: 0.25rem 0.5rem; border: none; background: transparent; cursor: pointer;">
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                            </div>
                         </td>
                         <td>
                             <strong style="color: var(--text-primary);">{{ rule.name or 'Unnamed' }}</strong>
@@ -382,12 +391,29 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label for="rule_name" class="form-label">Rule Name</label>
-                        <input type="text" class="form-control" id="rule_name" name="rule_name" placeholder="e.g., Main Office Rule">
-                    </div>
-                    <div class="mb-3">
-                        <label for="trunk_ids" class="form-label">Trunk IDs</label>
+                    <!-- Tabs for Form/JSON -->
+                    <ul class="nav nav-tabs mb-3" id="createRuleTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="create-form-tab" data-bs-toggle="tab" data-bs-target="#create-form-pane" type="button" role="tab" aria-controls="create-form-pane" aria-selected="true">
+                                <i class="bi bi-form"></i> Form
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="create-json-tab" data-bs-toggle="tab" data-bs-target="#create-json-pane" type="button" role="tab" aria-controls="create-json-pane" aria-selected="false">
+                                <i class="bi bi-code-slash"></i> JSON
+                            </button>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content" id="createRuleTabContent">
+                        <!-- Form Tab -->
+                        <div class="tab-pane fade show active" id="create-form-pane" role="tabpanel" aria-labelledby="create-form-tab">
+                            <div class="mb-3">
+                                <label for="rule_name" class="form-label">Rule Name</label>
+                                <input type="text" class="form-control" id="rule_name" name="rule_name" placeholder="e.g., Main Office Rule">
+                            </div>
+                            <div class="mb-3">
+                                <label for="trunk_ids" class="form-label">Trunk IDs</label>
                         <!-- Selected Trunks Display -->
                         <div id="selected_trunks_container" class="mb-2" style="min-height: 40px; padding: 0.5rem; border: 1px solid var(--border-color, #dee2e6); border-radius: 0.375rem; background-color: var(--bg-secondary, #f8f9fa); display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: flex-start;">
                             <span class="text-muted" id="no_trunks_selected" style="align-self: center;">No trunks selected</span>
@@ -485,9 +511,74 @@
                         <small class="form-text text-muted">Additional metadata to pass to the agent</small>
                     </div>
                     
-                    <div class="mb-3">
-                        <label for="rule_metadata" class="form-label">Rule Metadata (Optional)</label>
-                        <textarea class="form-control" id="rule_metadata" name="metadata" rows="2" placeholder="Additional metadata for the dispatch rule"></textarea>
+                            <div class="mb-3">
+                                <label for="rule_metadata" class="form-label">Rule Metadata (Optional)</label>
+                                <textarea class="form-control" id="rule_metadata" name="metadata" rows="2" placeholder="Additional metadata for the dispatch rule"></textarea>
+                            </div>
+                        </div>
+                        
+                        <!-- JSON Tab -->
+                        <div class="tab-pane fade" id="create-json-pane" role="tabpanel" aria-labelledby="create-json-tab">
+                            <div class="mb-3">
+                                <label for="plain_json" class="form-label">JSON Configuration</label>
+                                <textarea class="form-control font-monospace" id="plain_json" name="plain_json" rows="15" placeholder='{
+  "rule": {
+    "dispatch_rule_direct": {
+      "room_name": "my-room",
+      "pin": ""
+    }
+  },
+  "name": "My Rule",
+  "trunk_ids": ["trunk-id-1"],
+  "hide_phone_number": false,
+  "metadata": "optional metadata",
+  "attributes": {},
+  "room_config": {
+    "agents": [{
+      "agent_name": "my-agent",
+      "metadata": ""
+    }]
+  }
+}'></textarea>
+                                <small class="form-text text-muted">
+                                    <i class="bi bi-info-circle"></i> Provide complete JSON configuration. This will override all form fields.
+                                    <br><strong>Example for direct rule:</strong>
+                                    <pre class="bg-light p-2 mt-2 rounded" style="font-size: 0.875rem;"><code>{
+  "rule": {
+    "dispatch_rule_direct": {
+      "room_name": "my-room",
+      "pin": ""
+    }
+  },
+  "name": "My Rule",
+  "trunk_ids": ["trunk-id"]
+}</code></pre>
+                                    <strong>Example for individual rule:</strong>
+                                    <pre class="bg-light p-2 mt-2 rounded" style="font-size: 0.875rem;"><code>{
+  "rule": {
+    "dispatch_rule_individual": {
+      "room_prefix": "caller-",
+      "pin": ""
+    }
+  },
+  "name": "Individual Rule",
+  "trunk_ids": ["trunk-id"]
+}</code></pre>
+                                    <strong>Example for callee rule:</strong>
+                                    <pre class="bg-light p-2 mt-2 rounded" style="font-size: 0.875rem;"><code>{
+  "rule": {
+    "dispatch_rule_callee": {
+      "room_prefix": "callee-",
+      "pin": "",
+      "randomize": false
+    }
+  },
+  "name": "Callee Rule",
+  "trunk_ids": ["trunk-id"]
+}</code></pre>
+                                </small>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -515,12 +606,29 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label for="edit_rule_name" class="form-label">Rule Name</label>
-                        <input type="text" class="form-control" id="edit_rule_name" name="rule_name">
-                    </div>
-                    <div class="mb-3">
-                        <label for="edit_trunk_ids" class="form-label">Trunk IDs</label>
+                    <!-- Tabs for Form/JSON -->
+                    <ul class="nav nav-tabs mb-3" id="editRuleTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="edit-form-tab" data-bs-toggle="tab" data-bs-target="#edit-form-pane" type="button" role="tab" aria-controls="edit-form-pane" aria-selected="true">
+                                <i class="bi bi-form"></i> Form
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="edit-json-tab" data-bs-toggle="tab" data-bs-target="#edit-json-pane" type="button" role="tab" aria-controls="edit-json-pane" aria-selected="false">
+                                <i class="bi bi-code-slash"></i> JSON
+                            </button>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content" id="editRuleTabContent">
+                        <!-- Form Tab -->
+                        <div class="tab-pane fade show active" id="edit-form-pane" role="tabpanel" aria-labelledby="edit-form-tab">
+                            <div class="mb-3">
+                                <label for="edit_rule_name" class="form-label">Rule Name</label>
+                                <input type="text" class="form-control" id="edit_rule_name" name="rule_name">
+                            </div>
+                            <div class="mb-3">
+                                <label for="edit_trunk_ids" class="form-label">Trunk IDs</label>
                         <!-- Selected Trunks Display -->
                         <div id="edit_selected_trunks_container" class="mb-2" style="min-height: 40px; padding: 0.5rem; border: 1px solid var(--border-color, #dee2e6); border-radius: 0.375rem; background-color: var(--bg-secondary, #f8f9fa); display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: flex-start;">
                             <span class="text-muted" id="edit_no_trunks_selected" style="align-self: center;">No trunks selected</span>
@@ -618,9 +726,74 @@
                         <small class="form-text text-muted">Additional metadata to pass to the agent</small>
                     </div>
                     
-                    <div class="mb-3">
-                        <label for="edit_rule_metadata" class="form-label">Rule Metadata (Optional)</label>
-                        <textarea class="form-control" id="edit_rule_metadata" name="metadata" rows="2"></textarea>
+                            <div class="mb-3">
+                                <label for="edit_rule_metadata" class="form-label">Rule Metadata (Optional)</label>
+                                <textarea class="form-control" id="edit_rule_metadata" name="metadata" rows="2"></textarea>
+                            </div>
+                        </div>
+                        
+                        <!-- JSON Tab -->
+                        <div class="tab-pane fade" id="edit-json-pane" role="tabpanel" aria-labelledby="edit-json-tab">
+                            <div class="mb-3">
+                                <label for="edit_plain_json" class="form-label">JSON Configuration</label>
+                                <textarea class="form-control font-monospace" id="edit_plain_json" name="plain_json" rows="15" placeholder='{
+  "rule": {
+    "dispatch_rule_direct": {
+      "room_name": "my-room",
+      "pin": ""
+    }
+  },
+  "name": "My Rule",
+  "trunk_ids": ["trunk-id-1"],
+  "hide_phone_number": false,
+  "metadata": "optional metadata",
+  "attributes": {},
+  "room_config": {
+    "agents": [{
+      "agent_name": "my-agent",
+      "metadata": ""
+    }]
+  }
+}'></textarea>
+                                <small class="form-text text-muted">
+                                    <i class="bi bi-info-circle"></i> Provide complete JSON configuration. This will override all form fields.
+                                    <br><strong>Example for direct rule:</strong>
+                                    <pre class="bg-light p-2 mt-2 rounded" style="font-size: 0.875rem;"><code>{
+  "rule": {
+    "dispatch_rule_direct": {
+      "room_name": "my-room",
+      "pin": ""
+    }
+  },
+  "name": "My Rule",
+  "trunk_ids": ["trunk-id"]
+}</code></pre>
+                                    <strong>Example for individual rule:</strong>
+                                    <pre class="bg-light p-2 mt-2 rounded" style="font-size: 0.875rem;"><code>{
+  "rule": {
+    "dispatch_rule_individual": {
+      "room_prefix": "caller-",
+      "pin": ""
+    }
+  },
+  "name": "Individual Rule",
+  "trunk_ids": ["trunk-id"]
+}</code></pre>
+                                    <strong>Example for callee rule:</strong>
+                                    <pre class="bg-light p-2 mt-2 rounded" style="font-size: 0.875rem;"><code>{
+  "rule": {
+    "dispatch_rule_callee": {
+      "room_prefix": "callee-",
+      "pin": "",
+      "randomize": false
+    }
+  },
+  "name": "Callee Rule",
+  "trunk_ids": ["trunk-id"]
+}</code></pre>
+                                </small>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -744,6 +917,65 @@ function copyTrunkId(trunkId, button) {
         } catch (err) {
             console.error('Fallback copy failed: ', err);
             alert('Failed to copy trunk ID. Please copy manually: ' + text);
+        } finally {
+            document.body.removeChild(textarea);
+        }
+    }
+}
+
+// Copy Rule ID to Clipboard
+function copyRuleId(ruleId, button) {
+    function showSuccess() {
+        // Change icon to checked icon temporarily
+        var icon = button.querySelector('i');
+        var originalClass = icon.className;
+        icon.className = 'bi bi-check-circle-fill';
+        button.style.color = 'var(--success, #28a745)';
+        button.title = 'Copied!';
+        
+        // Reset after 2 seconds
+        setTimeout(function() {
+            icon.className = originalClass;
+            button.style.color = '';
+            button.title = 'Copy rule ID';
+        }, 2000);
+    }
+    
+    // Try modern Clipboard API first
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(ruleId).then(function() {
+            showSuccess();
+        }).catch(function(err) {
+            console.error('Failed to copy: ', err);
+            // Fallback to older method
+            fallbackCopy(ruleId);
+        });
+    } else {
+        // Fallback to older method
+        fallbackCopy(ruleId);
+    }
+    
+    function fallbackCopy(text) {
+        // Create a temporary textarea element
+        var textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-999999px';
+        textarea.style.top = '-999999px';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        
+        try {
+            var successful = document.execCommand('copy');
+            if (successful) {
+                showSuccess();
+            } else {
+                alert('Failed to copy rule ID. Please copy manually: ' + text);
+            }
+        } catch (err) {
+            console.error('Fallback copy failed: ', err);
+            alert('Failed to copy rule ID. Please copy manually: ' + text);
         } finally {
             document.body.removeChild(textarea);
         }
@@ -960,10 +1192,112 @@ function updateDispatchRuleFields(isEdit) {
     }
 }
 
+// Sync form fields to JSON
+function syncFormToJson(isEdit) {
+    var prefix = isEdit ? 'edit_' : '';
+    var dispatchRuleTypeEl = document.getElementById(prefix + 'dispatch_rule_type');
+    if (!dispatchRuleTypeEl) return; // Form not ready yet
+    
+    var dispatchRuleType = dispatchRuleTypeEl.value;
+    var nameEl = document.getElementById(isEdit ? 'edit_rule_name' : 'rule_name');
+    var name = nameEl ? nameEl.value : '';
+    var trunkIdsHidden = document.getElementById(prefix + 'trunk_ids_hidden');
+    var trunkIds = trunkIdsHidden ? trunkIdsHidden.value : '';
+    var hidePhoneNumberEl = document.getElementById(prefix + 'hide_phone_number');
+    var hidePhoneNumber = hidePhoneNumberEl ? hidePhoneNumberEl.checked : false;
+    var metadataEl = document.getElementById(prefix + 'rule_metadata');
+    var metadata = metadataEl ? metadataEl.value : '';
+    var agentNameEl = document.getElementById(prefix + 'agent_name');
+    var agentName = agentNameEl ? agentNameEl.value : '';
+    var agentMetadataEl = document.getElementById(prefix + 'agent_metadata');
+    var agentMetadata = agentMetadataEl ? agentMetadataEl.value : '';
+    
+    var roomNameOrPrefix = '';
+    var roomPrefix = '';
+    var pin = '';
+    var randomize = false;
+    
+    if (dispatchRuleType === 'direct') {
+        roomNameOrPrefix = document.getElementById(prefix + 'room_name').value;
+        pin = document.getElementById(prefix + 'pin').value;
+    } else if (dispatchRuleType === 'individual') {
+        roomPrefix = document.getElementById(prefix + 'room_prefix').value;
+        pin = document.getElementById(prefix + 'pin').value;
+    } else if (dispatchRuleType === 'callee') {
+        roomPrefix = document.getElementById(prefix + 'callee_room_prefix').value;
+        pin = document.getElementById(prefix + 'pin').value;
+        var randomizeCheckbox = document.getElementById(prefix + 'randomize');
+        randomize = randomizeCheckbox ? randomizeCheckbox.checked : false;
+    }
+    
+    var ruleJson = buildRuleJson(dispatchRuleType, roomNameOrPrefix, pin, roomPrefix, randomize, name, trunkIds, hidePhoneNumber, metadata, agentName, agentMetadata);
+    var jsonEl = document.getElementById(prefix + 'plain_json');
+    if (jsonEl) {
+        jsonEl.value = ruleJson;
+    }
+}
+
+// Build JSON representation from rule data
+function buildRuleJson(dispatchRuleType, roomNameOrPrefix, pin, roomPrefix, randomize, name, trunkIds, hidePhoneNumber, metadata, agentName, agentMetadata) {
+    var ruleJson = {};
+    
+    // Build rule object based on type
+    if (dispatchRuleType === 'direct') {
+        ruleJson.rule = {
+            dispatch_rule_direct: {
+                room_name: roomNameOrPrefix || '',
+                pin: pin || ''
+            }
+        };
+    } else if (dispatchRuleType === 'individual') {
+        ruleJson.rule = {
+            dispatch_rule_individual: {
+                room_prefix: roomPrefix || roomNameOrPrefix || '',
+                pin: pin || ''
+            }
+        };
+    } else if (dispatchRuleType === 'callee') {
+        ruleJson.rule = {
+            dispatch_rule_callee: {
+                room_prefix: roomPrefix || roomNameOrPrefix || '',
+                pin: pin || '',
+                randomize: randomize === true || randomize === 'true'
+            }
+        };
+    }
+    
+    // Add other fields
+    if (name) {
+        ruleJson.name = name;
+    }
+    if (trunkIds) {
+        var trunkIdArray = trunkIds.split(',').map(id => id.trim()).filter(id => id.length > 0);
+        if (trunkIdArray.length > 0) {
+            ruleJson.trunk_ids = trunkIdArray;
+        }
+    }
+    if (hidePhoneNumber === true || hidePhoneNumber === 'true') {
+        ruleJson.hide_phone_number = true;
+    }
+    if (metadata) {
+        ruleJson.metadata = metadata;
+    }
+    if (agentName) {
+        ruleJson.room_config = {
+            agents: [{
+                agent_name: agentName,
+                metadata: agentMetadata || ''
+            }]
+        };
+    }
+    
+    return JSON.stringify(ruleJson, null, 2);
+}
+
 // Edit Rule
 function editRule(ruleId, name, trunkIds, dispatchRuleType, roomNameOrPrefix, pin, hidePhoneNumber, metadata, agentName, agentMetadata, roomPrefix, randomize) {
     document.getElementById('edit_sip_dispatch_rule_id').value = ruleId;
-    document.getElementById('edit_rule_name').value = name;
+    document.getElementById('edit_rule_name').value = name || '';
     
     // Clear and populate trunk tags
     clearTrunkTags(true);
@@ -998,15 +1332,19 @@ function editRule(ruleId, name, trunkIds, dispatchRuleType, roomNameOrPrefix, pi
         var prefixValue = roomPrefix || roomNameOrPrefix || '';
         document.getElementById('edit_callee_room_prefix').value = prefixValue;
         if (randomize !== undefined) {
-            document.getElementById('edit_randomize').checked = randomize;
+            document.getElementById('edit_randomize').checked = randomize === true || randomize === 'true';
         }
     }
     
     document.getElementById('edit_pin').value = pin || '';
-    document.getElementById('edit_hide_phone_number').checked = hidePhoneNumber;
+    document.getElementById('edit_hide_phone_number').checked = hidePhoneNumber === true || hidePhoneNumber === 'true';
     document.getElementById('edit_agent_name').value = agentName || '';
     document.getElementById('edit_agent_metadata').value = agentMetadata || '';
-    document.getElementById('edit_rule_metadata').value = metadata;
+    document.getElementById('edit_rule_metadata').value = metadata || '';
+    
+    // Build and populate JSON
+    var ruleJson = buildRuleJson(dispatchRuleType, roomNameOrPrefix, pin, roomPrefix, randomize, name, trunkIds, hidePhoneNumber, metadata, agentName, agentMetadata);
+    document.getElementById('edit_plain_json').value = ruleJson;
     
     var modal = new bootstrap.Modal(document.getElementById('editRuleModal'));
     modal.show();
@@ -1026,6 +1364,72 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize dispatch rule fields visibility
     updateDispatchRuleFields(false);
     updateDispatchRuleFields(true);
+    
+    // Handle tab switching for create rule modal
+    var createFormTab = document.getElementById('create-form-tab');
+    var createJsonTab = document.getElementById('create-json-tab');
+    if (createFormTab && createJsonTab) {
+        createFormTab.addEventListener('shown.bs.tab', function() {
+            // When switching to form tab, ensure form fields are visible
+            updateDispatchRuleFields(false);
+        });
+        createJsonTab.addEventListener('shown.bs.tab', function() {
+            // When switching to JSON tab, nothing special needed
+        });
+    }
+    
+    // Handle tab switching for edit rule modal
+    var editFormTab = document.getElementById('edit-form-tab');
+    var editJsonTab = document.getElementById('edit-json-tab');
+    if (editFormTab && editJsonTab) {
+        editFormTab.addEventListener('shown.bs.tab', function() {
+            // When switching to form tab, ensure form fields are visible
+            updateDispatchRuleFields(true);
+            // Sync form fields to JSON
+            syncFormToJson(true);
+        });
+        editJsonTab.addEventListener('shown.bs.tab', function() {
+            // When switching to JSON tab, nothing special needed
+        });
+    }
+    
+    // Handle tab switching for create rule modal
+    var createFormTab = document.getElementById('create-form-tab');
+    var createJsonTab = document.getElementById('create-json-tab');
+    if (createFormTab && createJsonTab) {
+        createFormTab.addEventListener('shown.bs.tab', function() {
+            // When switching to form tab, ensure form fields are visible
+            updateDispatchRuleFields(false);
+            // Sync form fields to JSON
+            syncFormToJson(false);
+        });
+        createJsonTab.addEventListener('shown.bs.tab', function() {
+            // When switching to JSON tab, nothing special needed
+        });
+    }
+    
+    // Reset tabs when modals are closed
+    var createRuleModal = document.getElementById('createRuleModal');
+    if (createRuleModal) {
+        createRuleModal.addEventListener('hidden.bs.modal', function() {
+            // Reset to form tab
+            var formTab = bootstrap.Tab.getInstance(createFormTab);
+            if (formTab) {
+                formTab.show();
+            }
+        });
+    }
+    
+    var editRuleModal = document.getElementById('editRuleModal');
+    if (editRuleModal) {
+        editRuleModal.addEventListener('hidden.bs.modal', function() {
+            // Reset to form tab
+            var formTab = bootstrap.Tab.getInstance(editFormTab);
+            if (formTab) {
+                formTab.show();
+            }
+        });
+    }
     
     // Handle Create Rule modal - trunk selection
     var createTrunkOptions = document.querySelectorAll('.trunk-option');

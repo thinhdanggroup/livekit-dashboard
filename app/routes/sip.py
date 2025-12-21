@@ -479,6 +479,7 @@ async def create_dispatch_rule(
     agent_name: Optional[str] = Form(None),
     agent_metadata: Optional[str] = Form(None),
     metadata: Optional[str] = Form(None),
+    plain_json: Optional[str] = Form(None),
     lk: LiveKitClient = Depends(get_livekit_client),
 ):
     """Create a new SIP dispatch rule"""
@@ -505,6 +506,7 @@ async def create_dispatch_rule(
             agent_name=agent_name,
             agent_metadata=agent_metadata,
             metadata=metadata,
+            plain_json=plain_json,
         )
 
         # Success message
@@ -553,6 +555,7 @@ async def update_dispatch_rule(
     agent_name: Optional[str] = Form(None),
     agent_metadata: Optional[str] = Form(None),
     metadata: Optional[str] = Form(None),
+    plain_json: Optional[str] = Form(None),
     lk: LiveKitClient = Depends(get_livekit_client),
 ):
     """Update an existing SIP dispatch rule"""
@@ -580,6 +583,7 @@ async def update_dispatch_rule(
             agent_name=agent_name,
             agent_metadata=agent_metadata,
             metadata=metadata,
+            plain_json=plain_json,
         )
 
         # Success message
