@@ -1,0 +1,26 @@
+name: Close stale issues and PRs
+
+on:
+  schedule:
+      - cron: '0 0 * * *'  # Runs daily at midnight UTC
+        workflow_dispatch:  # Allows manual trigger
+
+        jobs:
+          stale:
+              runs-on: ubuntu-latest
+                  permissions:
+                        issues: write
+                              pull-requests: write
+                                  steps:
+                                        - uses: actions/stale@v9
+                                                with:
+                                                          # Issue settings
+                                                                    days-before-issue-stale: 15        # Add 'stale' label after 15 days
+                                                                              days-before-issue-close: 30        # Close after 30 days
+                                                                                        stale-issue-message: |
+                                                                                                    This issue has been inactive for 15 days. It will be automatically closed in 15 days if there's no activity.
+                                                                                                                If you believe this is still relevant, please comment to keep it open.
+                                                                                                                          close-issue-message: 'This issue was automatically closed due to inactivity.'
+                                                                                                                                    stale-issue-label: 'stale'
+                                                                                                                                              exempt-issue-labels: 'pinned,security'
+                                                                                                                                                        operations-per-run: 30
