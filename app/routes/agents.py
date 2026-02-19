@@ -140,6 +140,17 @@ async def agent_detail(
     rooms = sorted({d["room"] for d in dispatches})
     total_sessions = sum(d["running_jobs"] for d in dispatches)
 
+    # Aggregate job-level metrics across all dispatches
+    all_jobs = [j for d in dispatches for j in d["jobs"]]
+    total_jobs = len(all_jobs)
+    running_jobs_count = sum(1 for j in all_jobs if j["status"] == "running")
+    success_jobs_count = sum(1 for j in all_jobs if j["status"] == "success")
+    failed_jobs_count = sum(1 for j in all_jobs if j["status"] == "failed")
+    pending_jobs_count = sum(1 for j in all_jobs if j["status"] == "pending")
+    success_rate = round(success_jobs_count / total_jobs * 100, 1) if total_jobs > 0 else 0.0
+
+    agent_id = dispatches[0]["id"] if dispatches else None
+
     return request.app.state.templates.TemplateResponse(
         "agents/detail.html.j2",
         {
@@ -148,10 +159,17 @@ async def agent_detail(
             "sip_enabled": lk.sip_enabled,
             "csrf_token": get_csrf_token(request),
             "agent_name": agent_name,
+            "agent_id": agent_id,
             "dispatches": dispatches,
             "rooms": rooms,
             "total_sessions": total_sessions,
             "latency_ms": round(latency * 1000, 2),
+            "total_jobs": total_jobs,
+            "running_jobs_count": running_jobs_count,
+            "success_jobs_count": success_jobs_count,
+            "failed_jobs_count": failed_jobs_count,
+            "pending_jobs_count": pending_jobs_count,
+            "success_rate": success_rate,
         },
     )
 

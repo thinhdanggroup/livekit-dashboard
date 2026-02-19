@@ -16,6 +16,7 @@ A **stateless**, self-hosted, server-side rendered (SSR) dashboard for managing 
 - 👥 **Participant Control** - Kick participants, view tracks, connection stats
 - 📹 **Egress/Recordings** - Start/stop composite egress, view active jobs
 - 📥 **Ingress Monitoring** - Stream analytics and connection quality metrics
+- 🤖 **Agent Management** - Dispatch agents to rooms, view job status and success rates
 - 📞 **SIP Integration** - (Optional) Manage SIP trunks, outbound/inbound calls
 - 🔧 **Settings View** - Read-only configuration and server info
 - 🧪 **Sandbox** - Token generator with HMAC verification helper
@@ -34,6 +35,7 @@ A **stateless**, self-hosted, server-side rendered (SSR) dashboard for managing 
 - **Room Analytics** - Active rooms, participant distribution, room sizes
 - **Egress Analytics** - Job status, success rates, storage usage, type distribution
 - **Ingress Analytics** - Stream monitoring, connection quality, bitrate analysis
+- **Agent Analytics** - Dispatch counts, job status breakdown, success rates per agent
 - **SIP Analytics** - Trunk status, call volume, dispatch rules (when enabled)
 
 ### Visual Components
@@ -218,6 +220,14 @@ ENABLE_SIP=false
 - Stop active recordings
 - View file outputs and download URLs
 
+#### Agents (`/agents`)
+
+- Fleet overview — all agent dispatches grouped by agent name
+- Per-agent detail page with job status breakdown and success rate chart
+- Dispatch agents to rooms with optional metadata
+- Delete active dispatches
+- Job-level metrics: running, success, pending, failed counts
+
 #### SIP (`/sip-outbound`, `/sip-inbound`)
 
 - View configured SIP trunks
@@ -268,6 +278,7 @@ livekit-dashboard/
 │   │   ├── overview.py         # Overview/dashboard
 │   │   ├── rooms.py            # Room management
 │   │   ├── egress.py           # Egress/recordings
+│   │   ├── agents.py           # Agent dispatch management
 │   │   ├── sip.py              # SIP telephony
 │   │   ├── settings.py         # Settings page
 │   │   ├── sandbox.py          # Token generator
@@ -282,6 +293,7 @@ livekit-dashboard/
 │   │   ├── index.html.j2       # Overview page
 │   │   ├── rooms/              # Room templates
 │   │   ├── egress/             # Egress templates
+│   │   ├── agents/             # Agent templates
 │   │   ├── sip/                # SIP templates
 │   │   ├── settings.html.j2    # Settings page
 │   │   └── sandbox.html.j2     # Token generator
@@ -409,6 +421,10 @@ make check
 | `/egress`              | GET    | List egress jobs   | ✅            |
 | `/egress/start`        | POST   | Start egress       | ✅            |
 | `/egress/{id}/stop`    | POST   | Stop egress        | ✅            |
+| `/agents`              | GET    | Agent fleet overview | ✅          |
+| `/agents/{name}`       | GET    | Per-agent detail   | ✅            |
+| `/agents/dispatch`     | POST   | Create dispatch    | ✅            |
+| `/agents/{id}/delete`  | POST   | Delete dispatch    | ✅            |
 | `/sip-outbound`        | GET    | SIP outbound page  | ✅            |
 | `/sip-inbound`         | GET    | SIP inbound page   | ✅            |
 | `/sandbox`             | GET    | Token generator    | ✅            |
@@ -476,6 +492,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - ✅ Token generation works on-the-fly
 - ✅ Room and participant management operational
 - ✅ Egress start/stop functionality
+- ✅ Agent dispatch management (fleet overview + per-agent detail)
 - ✅ SIP features (when enabled)
 
 ---

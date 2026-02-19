@@ -49,7 +49,7 @@
         <div class="card h-100">
             <div class="card-body">
                 <div class="text-muted small text-uppercase fw-semibold mb-1">Agent name</div>
-                <div class="fw-semibold">{{ agent_name }}</div>
+                <div class="fw-semibold">{{ agent_name if agent_name != '(unnamed)' else '—' }}</div>
             </div>
         </div>
     </div>
@@ -58,9 +58,9 @@
             <div class="card-body">
                 <div class="text-muted small text-uppercase fw-semibold mb-1">Latest dispatch ID</div>
                 <div class="d-flex align-items-center gap-1">
-                    {% if dispatches %}
-                    <code style="font-size:.8rem;word-break:break-all;">{{ dispatches[0].id }}</code>
-                    <button class="btn btn-link p-0 copy-btn" data-copy="{{ dispatches[0].id }}" title="Copy">
+                    {% if agent_id %}
+                    <code style="font-size:.75rem;word-break:break-all;">{{ agent_id }}</code>
+                    <button class="btn btn-link p-0 copy-btn" data-copy="{{ agent_id }}" title="Copy">
                         <i class="bi bi-clipboard" style="font-size:.8rem;"></i>
                     </button>
                     {% else %}
@@ -73,21 +73,106 @@
     <div class="col-sm-6 col-lg-3">
         <div class="card h-100">
             <div class="card-body">
-                <div class="text-muted small text-uppercase fw-semibold mb-1">Concurrent sessions</div>
-                <div class="fw-semibold">{{ total_sessions }}</div>
+                <div class="text-muted small text-uppercase fw-semibold mb-1">Concurrent agent sessions</div>
+                <div class="fs-3 fw-bold">{{ total_sessions }}</div>
             </div>
         </div>
     </div>
     <div class="col-sm-6 col-lg-3">
         <div class="card h-100">
             <div class="card-body">
-                <div class="text-muted small text-uppercase fw-semibold mb-1">Rooms ({{ rooms | length }})</div>
-                <div>
-                    {% for room in rooms %}
-                    <span class="badge bg-secondary me-1">{{ room }}</span>
-                    {% else %}
-                    <span class="text-muted">—</span>
-                    {% endfor %}
+                <div class="text-muted small text-uppercase fw-semibold mb-1">Total dispatches</div>
+                <div class="fs-3 fw-bold">{{ dispatches | length }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Overview -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">Overview</h5>
+</div>
+
+<div class="row g-3 mb-4">
+    <!-- Sessions served chart -->
+    <div class="col-lg-8">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="text-muted small text-uppercase fw-semibold mb-3">Sessions served</div>
+                {% if total_jobs > 0 %}
+                <div style="position:relative;height:200px;">
+                    <canvas id="sessionsChart"></canvas>
+                </div>
+                {% else %}
+                <div class="d-flex align-items-center justify-content-center" style="height:200px;">
+                    <div class="text-center text-muted">
+                        <i class="bi bi-bar-chart" style="font-size:2rem;opacity:.3;"></i>
+                        <div class="mt-2" style="font-size:.85rem;">No job data yet</div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Right column: uptime + latency -->
+    <div class="col-lg-4">
+        <div class="row g-3 h-100">
+            <!-- Success rate (uptime proxy) -->
+            <div class="col-12">
+                <div class="card h-100">
+                    <div class="card-body text-center d-flex flex-column justify-content-center">
+                        <div class="text-muted small text-uppercase fw-semibold mb-2">Success rate</div>
+                        {% if total_jobs > 0 %}
+                        <div class="fw-bold" style="font-size:2.5rem;color:{% if success_rate >= 90 %}#20c997{% elif success_rate >= 70 %}#ffc107{% else %}#dc3545{% endif %};">
+                            {{ success_rate }}<span style="font-size:1.2rem;">%</span>
+                        </div>
+                        <div class="text-muted mt-2" style="font-size:.8rem;">
+                            {{ success_jobs_count }} / {{ total_jobs }} jobs succeeded
+                        </div>
+                        {% else %}
+                        <div class="fw-bold text-muted" style="font-size:2.5rem;">—</div>
+                        <div class="text-muted mt-2" style="font-size:.8rem;">No jobs recorded</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <!-- Job status breakdown -->
+            <div class="col-12">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="text-muted small text-uppercase fw-semibold mb-3">Job status breakdown</div>
+                        {% if total_jobs > 0 %}
+                        <div class="mb-2">
+                            <div class="d-flex justify-content-between mb-1" style="font-size:.8rem;">
+                                <span><i class="bi bi-circle-fill text-success me-1" style="font-size:.6rem;"></i>Running</span>
+                                <span class="fw-semibold">{{ running_jobs_count }}</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-1" style="font-size:.8rem;">
+                                <span><i class="bi bi-circle-fill text-primary me-1" style="font-size:.6rem;"></i>Success</span>
+                                <span class="fw-semibold">{{ success_jobs_count }}</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-1" style="font-size:.8rem;">
+                                <span><i class="bi bi-circle-fill text-warning me-1" style="font-size:.6rem;"></i>Pending</span>
+                                <span class="fw-semibold">{{ pending_jobs_count }}</span>
+                            </div>
+                            <div class="d-flex justify-content-between" style="font-size:.8rem;">
+                                <span><i class="bi bi-circle-fill text-danger me-1" style="font-size:.6rem;"></i>Failed</span>
+                                <span class="fw-semibold">{{ failed_jobs_count }}</span>
+                            </div>
+                        </div>
+                        <div class="progress mt-3" style="height:8px;">
+                            {% if total_jobs > 0 %}
+                            <div class="progress-bar bg-success" style="width:{{ (running_jobs_count / total_jobs * 100) | round(1) }}%" title="Running: {{ running_jobs_count }}"></div>
+                            <div class="progress-bar bg-primary" style="width:{{ (success_jobs_count / total_jobs * 100) | round(1) }}%" title="Success: {{ success_jobs_count }}"></div>
+                            <div class="progress-bar bg-warning" style="width:{{ (pending_jobs_count / total_jobs * 100) | round(1) }}%" title="Pending: {{ pending_jobs_count }}"></div>
+                            <div class="progress-bar bg-danger" style="width:{{ (failed_jobs_count / total_jobs * 100) | round(1) }}%" title="Failed: {{ failed_jobs_count }}"></div>
+                            {% endif %}
+                        </div>
+                        {% else %}
+                        <div class="text-muted" style="font-size:.85rem;">No jobs recorded</div>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         </div>
@@ -213,6 +298,60 @@
 {% endblock %}
 
 {% block extra_scripts %}
+{% if total_jobs > 0 %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    const ctx = document.getElementById('sessionsChart');
+    if (!ctx) return;
+
+    const labels = ['Running', 'Success', 'Pending', 'Failed'];
+    const counts = [{{ running_jobs_count }}, {{ success_jobs_count }}, {{ pending_jobs_count }}, {{ failed_jobs_count }}];
+    const colors = ['#20c997', '#0d6efd', '#ffc107', '#dc3545'];
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Jobs',
+                data: counts,
+                backgroundColor: colors,
+                borderRadius: 4,
+                borderSkipped: false,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => ` ${ctx.parsed.y} job${ctx.parsed.y !== 1 ? 's' : ''}`
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { color: '#aaa', font: { size: 12 } }
+                },
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        color: '#aaa',
+                        stepSize: 1,
+                        precision: 0
+                    },
+                    grid: { color: 'rgba(255,255,255,.07)' }
+                }
+            }
+        }
+    });
+})();
+</script>
+{% endif %}
 <script>
 // Auto-refresh
 const refreshSelect = document.getElementById('refresh-select');
