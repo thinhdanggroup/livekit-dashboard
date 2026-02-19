@@ -1,0 +1,258 @@
+{% extends "base.html.j2" %}
+
+{% block title %}Homer SIP Monitor — LiveKit Dashboard{% endblock %}
+
+{% block page_title %}Homer SIP Monitor{% endblock %}
+{% block page_subtitle %}<p class="page-subtitle">Search and analyse SIP calls captured by Homer</p>{% endblock %}
+
+{% block extra_head %}
+<style>
+.homer-layout {
+    display: flex;
+    gap: 1.25rem;
+    align-items: flex-start;
+}
+.homer-sidebar {
+    width: 280px;
+    flex-shrink: 0;
+}
+.homer-main {
+    flex: 1;
+    min-width: 0;
+}
+@media (max-width: 900px) {
+    .homer-layout { flex-direction: column; }
+    .homer-sidebar { width: 100%; }
+}
+
+/* Method badges */
+.badge-method { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.03em; }
+.badge-invite  { background: #0d6efd; }
+.badge-bye     { background: #fd7e14; }
+.badge-cancel  { background: #dc3545; }
+.badge-register{ background: #6f42c1; }
+.badge-options { background: #6c757d; }
+.badge-ack     { background: #20c997; }
+.badge-trying  { background: #adb5bd; color:#212529; }
+.badge-ok      { background: #198754; }
+.badge-default { background: #495057; }
+
+/* Status badges */
+.badge-finished   { background:#198754; }
+.badge-answered   { background:#0dcaf0; color:#212529; }
+.badge-cancelled  { background:#dc3545; }
+.badge-trying-st  { background:#ffc107; color:#212529; }
+.badge-unknown    { background:#6c757d; }
+
+.callid-cell {
+    max-width: 240px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.copy-btn {
+    background: none;
+    border: none;
+    padding: 0 0.25rem;
+    color: #6c757d;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+.copy-btn:hover { color: #fff; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <div class="homer-layout">
+
+        <!-- Search Sidebar -->
+        <aside class="homer-sidebar">
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-search me-2"></i>Search Calls
+                </div>
+                <div class="card-body p-3">
+                    <form method="get" action="/homer" id="search-form">
+                        <input type="hidden" name="search" value="1">
+                        <div class="mb-2">
+                            <label class="form-label small mb-1">Call-ID</label>
+                            <input type="text" name="callid" class="form-control form-control-sm"
+                                   value="{{ filters.callid }}" placeholder="abc123…">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small mb-1">SIP From User</label>
+                            <input type="text" name="from_user" class="form-control form-control-sm"
+                                   value="{{ filters.from_user }}" placeholder="+1234567890">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small mb-1">SIP To User</label>
+                            <input type="text" name="to_user" class="form-control form-control-sm"
+                                   value="{{ filters.to_user }}" placeholder="+0987654321">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small mb-1">SIP Method</label>
+                            <input type="text" name="method" class="form-control form-control-sm"
+                                   value="{{ filters.method }}" placeholder="INVITE">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small mb-1">Source IP</label>
+                            <input type="text" name="src_ip" class="form-control form-control-sm"
+                                   value="{{ filters.source_ip }}" placeholder="10.0.0.1">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small mb-1">Destination IP</label>
+                            <input type="text" name="dst_ip" class="form-control form-control-sm"
+                                   value="{{ filters.dst_ip }}" placeholder="10.0.0.2">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small mb-1">From Tag</label>
+                            <input type="text" name="from_tag" class="form-control form-control-sm"
+                                   value="{{ filters.from_tag }}" placeholder="">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small mb-1">To Tag</label>
+                            <input type="text" name="to_tag" class="form-control form-control-sm"
+                                   value="{{ filters.to_tag }}" placeholder="">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small mb-1">Time Range</label>
+                            <select name="hours" class="form-select form-select-sm">
+                                <option value="1"   {% if hours == 1   %}selected{% endif %}>Last 1 hour</option>
+                                <option value="6"   {% if hours == 6   %}selected{% endif %}>Last 6 hours</option>
+                                <option value="24"  {% if hours == 24  %}selected{% endif %}>Last 24 hours</option>
+                                <option value="168" {% if hours == 168 %}selected{% endif %}>Last 7 days</option>
+                                <option value="720" {% if hours == 720 %}selected{% endif %}>Last 30 days</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 btn-sm">
+                            <i class="bi bi-search me-1"></i>Search
+                        </button>
+                        {% if searched %}
+                        <a href="/homer" class="btn btn-secondary w-100 btn-sm mt-2">
+                            <i class="bi bi-x-circle me-1"></i>Clear
+                        </a>
+                        {% endif %}
+                    </form>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Results -->
+        <div class="homer-main">
+            {% if error %}
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                <strong>Error:</strong> {{ error }}
+            </div>
+            {% endif %}
+
+            {% if not searched %}
+            <div class="card">
+                <div class="card-body text-center py-5 text-secondary">
+                    <i class="bi bi-telephone-x" style="font-size:3rem;opacity:0.4;"></i>
+                    <p class="mt-3 mb-0">Enter search filters and click <strong>Search</strong> to find SIP calls.</p>
+                </div>
+            </div>
+            {% elif calls %}
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-table me-2"></i>Results</span>
+                    <small class="text-secondary">{{ calls | length }} call(s) &nbsp;·&nbsp; {{ latency_ms }} ms</small>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm mb-0" style="font-size:0.82rem;">
+                        <thead>
+                            <tr>
+                                <th>Call-ID</th>
+                                <th>From</th>
+                                <th>To</th>
+                                <th>Src IP</th>
+                                <th>Dst IP</th>
+                                <th>Methods</th>
+                                <th>Date</th>
+                                <th>Duration</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for call in calls %}
+                        <tr>
+                            <td class="callid-cell">
+                                <button class="copy-btn" title="Copy Call-ID"
+                                        onclick="navigator.clipboard.writeText('{{ call.callid }}')">
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                                <a href="/homer/call/{{ call.callid | urlencode }}?id={{ call.id }}&ts={{ call.create_date }}"
+                                   title="{{ call.callid }}">
+                                    {{ call.callid[:40] }}{% if call.callid|length > 40 %}…{% endif %}
+                                </a>
+                            </td>
+                            <td>{{ call.from_user or '—' }}</td>
+                            <td>{{ call.to_user or '—' }}</td>
+                            <td>{{ call.src_ip or '—' }}</td>
+                            <td>{{ call.dst_ip or '—' }}</td>
+                            <td>
+                                {% for m in call.methods %}
+                                    {% set m_lower = m | lower %}
+                                    {% if m_lower == 'invite' %}
+                                        <span class="badge badge-method badge-invite">{{ m }}</span>
+                                    {% elif m_lower == 'bye' %}
+                                        <span class="badge badge-method badge-bye">{{ m }}</span>
+                                    {% elif m_lower == 'cancel' %}
+                                        <span class="badge badge-method badge-cancel">{{ m }}</span>
+                                    {% elif m_lower == 'register' %}
+                                        <span class="badge badge-method badge-register">{{ m }}</span>
+                                    {% elif m_lower == 'ack' %}
+                                        <span class="badge badge-method badge-ack">{{ m }}</span>
+                                    {% elif m_lower == 'options' %}
+                                        <span class="badge badge-method badge-options">{{ m }}</span>
+                                    {% else %}
+                                        <span class="badge badge-method badge-default">{{ m }}</span>
+                                    {% endif %}
+                                {% endfor %}
+                            </td>
+                            <td style="white-space:nowrap;">
+                                {% if call.create_date %}
+                                    {{ (call.create_date / 1000) | int | datetimeformat }}
+                                {% else %}—{% endif %}
+                            </td>
+                            <td style="white-space:nowrap;">{{ call.duration_str }}</td>
+                            <td>
+                                {% set st = call.status %}
+                                {% if st == 'Finished' %}
+                                    <span class="badge badge-finished">{{ st }}</span>
+                                {% elif st == 'Answered' %}
+                                    <span class="badge badge-answered">{{ st }}</span>
+                                {% elif st == 'Cancelled' %}
+                                    <span class="badge badge-cancelled">{{ st }}</span>
+                                {% elif st == 'Trying' %}
+                                    <span class="badge badge-trying-st">{{ st }}</span>
+                                {% else %}
+                                    <span class="badge badge-unknown">{{ st }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% else %}
+            <div class="card">
+                <div class="card-body text-center py-5 text-secondary">
+                    <i class="bi bi-inbox" style="font-size:3rem;opacity:0.4;"></i>
+                    <p class="mt-3 mb-0">No calls found matching your search criteria.</p>
+                </div>
+            </div>
+            {% endif %}
+        </div><!-- .homer-main -->
+    </div><!-- .homer-layout -->
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Auto-format timestamps if Jinja filter not available
+</script>
+{% endblock %}

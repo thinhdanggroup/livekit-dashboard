@@ -52,6 +52,16 @@
                 </a>
             </div>
             
+            {% if homer_enabled() %}
+            <div class="nav-section">
+                <div class="nav-section-title">Monitoring</div>
+                <a href="/homer" class="nav-link {% if '/homer' in request.url.path %}active{% endif %}">
+                    <i class="bi bi-telephone-x"></i>
+                    Homer SIP
+                </a>
+            </div>
+            {% endif %}
+
             {% if sip_enabled %}
             <div class="nav-section">
                 <div class="nav-section-title">Telephony</div>

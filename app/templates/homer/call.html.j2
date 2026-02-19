@@ -1,0 +1,704 @@
+{% extends "base.html.j2" %}
+
+{% block title %}Call {{ callid[:24] }}… — Homer{% endblock %}
+
+{% block page_header %}
+<div style="flex:1;min-width:0;">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        <a href="/homer" class="btn btn-sm btn-secondary">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div style="background:#7a1e4e;border-radius:6px;padding:0.35rem 0.75rem;font-size:0.8rem;font-family:monospace;word-break:break-all;max-width:600px;">
+            <span class="text-white-50 me-1">Call-ID:</span>
+            <span class="text-white fw-bold" id="callid-display">{{ callid }}</span>
+            <button class="btn btn-sm ms-2 p-0 px-1" style="color:#ccc;background:none;border:none;"
+                    title="Copy" onclick="navigator.clipboard.writeText('{{ callid }}')">
+                <i class="bi bi-clipboard"></i>
+            </button>
+        </div>
+    </div>
+    {% if session is defined and session %}
+    <div class="d-flex gap-3 mt-1" style="font-size:0.78rem;color:#aaa;">
+        <span><i class="bi bi-person me-1"></i>{{ session.from_user or '—' }}</span>
+        <span>→</span>
+        <span>{{ session.to_user or '—' }}</span>
+        <span class="ms-3"><i class="bi bi-clock me-1"></i>{{ session.duration_str }}</span>
+        <span>
+            {% if session.status == 'Finished' %}
+                <span class="badge" style="background:#198754;">{{ session.status }}</span>
+            {% elif session.status == 'Answered' %}
+                <span class="badge" style="background:#0dcaf0;color:#212529;">{{ session.status }}</span>
+            {% elif session.status == 'Cancelled' %}
+                <span class="badge" style="background:#dc3545;">{{ session.status }}</span>
+            {% else %}
+                <span class="badge" style="background:#6c757d;">{{ session.status }}</span>
+            {% endif %}
+        </span>
+    </div>
+    {% endif %}
+</div>
+<div class="top-bar-actions">
+    <div class="user-menu">
+        <i class="bi bi-person-circle"></i>
+        <span>{{ current_user or 'admin' }}</span>
+    </div>
+    <a href="/logout" class="btn btn-secondary btn-sm">
+        <i class="bi bi-box-arrow-right"></i> Logout
+    </a>
+</div>
+{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+/* ---- Tab content ---- */
+.homer-tab-content { padding: 1rem 0 0; }
+
+/* ---- Messages tab ---- */
+.msg-row { cursor: pointer; }
+.msg-row:hover { background: rgba(255,255,255,0.04) !important; }
+.msg-raw pre {
+    background:#111;
+    border:1px solid #333;
+    border-radius:4px;
+    padding:0.75rem;
+    font-size:0.72rem;
+    max-height:400px;
+    overflow:auto;
+    white-space:pre;
+    color:#c8e6c9;
+    margin:0;
+}
+
+/* ---- Flow tab ---- */
+.flow-container { overflow-x: auto; padding-bottom: 0.5rem; min-width: 500px; }
+
+/* Column header bar */
+.flow-col-head-bar {
+    display: flex;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #2a2a3a;
+    margin-bottom: 0;
+}
+.flow-col-head-item { flex: 1; min-width: 100px; text-align: center; }
+.flow-col-icon-box {
+    display: inline-block;
+    border: 1px solid #3a3a4a;
+    border-radius: 4px;
+    padding: 4px 10px;
+    color: #888;
+    font-size: 1.1rem;
+    margin-bottom: 4px;
+}
+.flow-col-ip-label { font-size: 0.78rem; color: #adb5bd; font-family: monospace; word-break: break-all; }
+
+/* Timeline area */
+.flow-timeline { position: relative; }
+
+/* Per-SIP-message block */
+.flow-sip-block {
+    position: relative;
+    padding: 38px 0 92px 0;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 0.1s;
+}
+.flow-sip-block:hover { background: rgba(255,255,255,0.04); }
+.flow-sip-block + .flow-sip-block { border-top: 1px solid #1e1e2e; }
+
+/* Log block */
+.flow-log-block { position: relative; padding: 20px 0; }
+
+/* Vertical column dashed lines */
+.flow-col-vline {
+    position: absolute;
+    top: 0; bottom: 0; width: 1px;
+    border-left: 1px dashed #2a2a3a;
+    pointer-events: none;
+}
+
+/* Method label above the arrow */
+.flow-msg-label {
+    position: absolute;
+    top: 5px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    white-space: nowrap;
+    z-index: 2;
+    line-height: 1.2;
+}
+
+/* Port numbers */
+.flow-port-num {
+    position: absolute;
+    font-size: 0.72rem;
+    color: #888;
+    z-index: 2;
+    white-space: nowrap;
+}
+
+/* Info text below arrow at source side */
+.flow-msg-info {
+    position: absolute;
+    bottom: 4px;
+    font-size: 0.68rem;
+    line-height: 1.5;
+    color: #888;
+    max-width: 45%;
+    overflow: hidden;
+    z-index: 2;
+}
+.flow-msg-info .l1 { color: #bbb; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+.flow-msg-info .l2 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.flow-msg-info .l3 { color: #666; }
+
+/* Method label colors */
+.fc-invite  { color: #5b9ef5; }
+.fc-bye     { color: #fd7e14; }
+.fc-cancel  { color: #fd7e14; }
+.fc-ok      { color: #3aaa6a; }
+.fc-1xx     { color: #888; }
+.fc-4xx, .fc-5xx { color: #cc4444; }
+.fc-log     { color: #666; }
+.fc-default { color: #a89000; }
+
+/* Arrow line + arrowhead colors */
+.bg-invite  { background: #5b9ef5; }
+.bg-bye     { background: #fd7e14; }
+.bg-cancel  { background: #fd7e14; }
+.bg-ok      { background: #3aaa6a; }
+.bg-1xx     { background: #888; }
+.bg-4xx, .bg-5xx { background: #cc4444; }
+.bg-log     { background: #444; }
+.bg-default { background: #a89000; }
+
+/* Loop arrow for logs */
+.flow-loop {
+    position: absolute;
+    width: 28px; height: 20px;
+    border: 1.5px solid #555;
+    border-radius: 0 8px 8px 0;
+    border-left: none;
+}
+
+/* ---- Session Info tab ---- */
+.session-card {
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+.session-metric {
+    font-size: 1.4rem;
+    font-weight: 700;
+}
+.session-metric-label {
+    font-size: 0.72rem;
+    color: #adb5bd;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* ---- Export tab ---- */
+.export-card { max-width: 480px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+
+{% if error %}
+<div class="alert alert-danger">
+    <i class="bi bi-exclamation-triangle me-2"></i><strong>Error:</strong> {{ error }}
+</div>
+{% endif %}
+
+<!-- Tab navigation -->
+<ul class="nav nav-tabs mb-0" id="homer-tabs" role="tablist">
+    <li class="nav-item">
+        <a class="nav-link {% if tab == 'flow' %}active{% endif %}"
+           href="?id={{ record_id }}&ts={{ ts }}&tab=flow">
+            <i class="bi bi-diagram-3 me-1"></i>Flow
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if tab == 'messages' %}active{% endif %}"
+           href="?id={{ record_id }}&ts={{ ts }}&tab=messages">
+            <i class="bi bi-envelope me-1"></i>Messages
+            {% if total_messages %}<span class="badge bg-secondary ms-1">{{ total_messages }}</span>{% endif %}
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if tab == 'session' %}active{% endif %}"
+           href="?id={{ record_id }}&ts={{ ts }}&tab=session">
+            <i class="bi bi-info-circle me-1"></i>Session Info
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if tab == 'logs' %}active{% endif %}"
+           href="?id={{ record_id }}&ts={{ ts }}&tab=logs">
+            <i class="bi bi-journal-text me-1"></i>Logs
+            {% if logs is defined and logs %}<span class="badge bg-secondary ms-1">{{ logs | length }}</span>{% endif %}
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if tab == 'export' %}active{% endif %}"
+           href="?id={{ record_id }}&ts={{ ts }}&tab=export">
+            <i class="bi bi-download me-1"></i>Export
+        </a>
+    </li>
+</ul>
+
+<div class="tab-content homer-tab-content">
+
+    <!-- ================================================================ FLOW TAB -->
+    {% if tab == 'flow' %}
+    <div class="card" style="border-top-left-radius:0;">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-diagram-3 me-2"></i>SIP Flow Diagram</span>
+            <small class="text-secondary">{{ latency_ms }} ms</small>
+        </div>
+        <div class="card-body p-2">
+        {% if flow_cols is defined and flow_rows is defined and flow_rows %}
+        {% set col_count = flow_cols | length %}
+        {% set col_pct = (100 / col_count) if col_count else 100 %}
+        <div class="flow-container">
+
+            <!-- Column header bar with ⇄ icons -->
+            <div class="flow-col-head-bar">
+                {% for col in flow_cols %}
+                <div class="flow-col-head-item">
+                    <div><span class="flow-col-icon-box">⇄</span></div>
+                    <div class="flow-col-ip-label">{{ col or '?' }}</div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Flow timeline -->
+            <div class="flow-timeline" id="flow-timeline">
+            {% for row in flow_rows %}
+            {% set src = row.src_col %}
+            {% set dst = row.dst_col %}
+            {% set method_lower = row.method | lower %}
+
+            {% if method_lower == 'invite' %}{% set ac = 'invite' %}
+            {% elif method_lower == 'bye' %}{% set ac = 'bye' %}
+            {% elif method_lower == 'cancel' %}{% set ac = 'cancel' %}
+            {% elif row.label.startswith('2') %}{% set ac = 'ok' %}
+            {% elif row.label.startswith('1') %}{% set ac = '1xx' %}
+            {% elif row.label.startswith('4') %}{% set ac = '4xx' %}
+            {% elif row.label.startswith('5') %}{% set ac = '5xx' %}
+            {% elif row.type == 'log' %}{% set ac = 'log' %}
+            {% else %}{% set ac = 'default' %}{% endif %}
+
+            {% if row.type == 'sip' %}
+            {% set src_pct = src * col_pct + col_pct / 2 %}
+            {% set dst_pct = dst * col_pct + col_pct / 2 %}
+            {% set goes_right = src_pct < dst_pct %}
+            {% set left_pct  = [src_pct, dst_pct] | min %}
+            {% set right_pct = [src_pct, dst_pct] | max %}
+
+            <div class="flow-sip-block" onclick="showFlowMsg({{ row.msg_idx }})">
+                <!-- Vertical column dashed lines spanning the full block height -->
+                {% for i in range(col_count) %}
+                <div class="flow-col-vline" style="left:calc({{ i * col_pct + col_pct/2 }}%)"></div>
+                {% endfor %}
+
+                <!-- Method label: top of block, at source end -->
+                <div class="flow-msg-label fc-{{ ac }}"
+                     style="{% if goes_right %}left:calc({{ src_pct }}% + 4px);{% else %}right:calc({{ 100 - src_pct }}% + 4px);text-align:right;{% endif %}">
+                    {{ row.method_display or row.label }}
+                </div>
+
+                {% if src >= 0 and dst >= 0 and src != dst %}
+                <!-- Port labels: 18px above the arrow line -->
+                <span class="flow-port-num"
+                      style="left:calc({{ left_pct }}% + 4px); top:calc(50% - 18px);">
+                    {% if goes_right %}{{ row.src_port }}{% else %}{{ row.dst_port }}{% endif %}
+                </span>
+                <!-- Arrow line with arrowhead: centred vertically -->
+                <div style="position:absolute; left:{{ left_pct }}%; width:{{ right_pct - left_pct }}%; top:50%; transform:translateY(-50%); display:flex; align-items:center; z-index:2;">
+                    {% if not goes_right %}<span class="fc-{{ ac }}" style="font-size:13px;line-height:1;flex-shrink:0;margin-right:-1px;">◀</span>{% endif %}
+                    <div class="bg-{{ ac }}" style="flex:1;height:1.5px;"></div>
+                    {% if goes_right %}<span class="fc-{{ ac }}" style="font-size:13px;line-height:1;flex-shrink:0;margin-left:-1px;">▶</span>{% endif %}
+                </div>
+                <span class="flow-port-num"
+                      style="right:calc({{ 100 - right_pct }}% + 4px); top:calc(50% - 18px);">
+                    {% if goes_right %}{{ row.dst_port }}{% else %}{{ row.src_port }}{% endif %}
+                </span>
+                {% endif %}
+
+                <!-- Info text: starts 14px below the arrow line, at source end -->
+                <div class="flow-msg-info"
+                     style="top:calc(50% + 14px); {% if goes_right %}left:calc({{ src_pct }}% + 4px); max-width:calc({{ right_pct - left_pct }}% - 12px);{% else %}right:calc({{ 100 - src_pct }}% + 4px); text-align:right; max-width:calc({{ right_pct - left_pct }}% - 12px);{% endif %}">
+                    <div class="l1">{{ row.first_sip_line }}</div>
+                    <div class="l2">{{ row.msg_id_str }} {{ row.ts_display }}</div>
+                    <div class="l3">+{{ row.offset_ms }}ms</div>
+                </div>
+            </div>
+
+            {% elif row.type == 'log' %}
+            {% set loop_pct = (dst * col_pct + col_pct / 2) if dst >= 0 else 50 %}
+            <div class="flow-log-block">
+                {% for i in range(col_count) %}
+                <div class="flow-col-vline" style="left:calc({{ i * col_pct + col_pct/2 }}%)"></div>
+                {% endfor %}
+                <div style="position:absolute;left:calc({{ loop_pct }}% - 2px);top:50%;transform:translateY(-50%);">
+                    <div class="flow-loop"></div>
+                    <div style="position:absolute;top:-18px;left:0;font-size:0.68rem;color:#666;white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis;">
+                        {{ row.label }}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% endfor %}
+            </div><!-- .flow-timeline -->
+        </div><!-- .flow-container -->
+        {% else %}
+        <p class="text-secondary text-center py-4 mb-0">No flow data available.</p>
+        {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ============================================================ MESSAGES TAB -->
+    {% if tab == 'messages' %}
+    <div class="card" style="border-top-left-radius:0;">
+        <div class="card-header d-flex justify-content-between">
+            <span><i class="bi bi-envelope me-2"></i>SIP Messages</span>
+            <small class="text-secondary">{{ total_messages }} messages &nbsp;·&nbsp; {{ latency_ms }} ms</small>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0" style="font-size:0.8rem;">
+                <thead>
+                    <tr>
+                        <th style="width:80px;">+Offset</th>
+                        <th>Source</th>
+                        <th style="width:20px;"></th>
+                        <th>Destination</th>
+                        <th>Method</th>
+                        <th>CSeq</th>
+                        <th>User-Agent</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% if messages is defined %}
+                {% for msg in messages %}
+                <tr class="msg-row" data-bs-toggle="collapse"
+                    data-bs-target="#raw-{{ loop.index }}" aria-expanded="false">
+                    <td class="text-secondary">+{{ msg.offset_ms }}ms</td>
+                    <td style="font-family:monospace;font-size:0.75rem;">{{ msg.src_addr }}</td>
+                    <td class="text-secondary">→</td>
+                    <td style="font-family:monospace;font-size:0.75rem;">{{ msg.dst_addr }}</td>
+                    <td>
+                        {% set m = msg.method | lower %}
+                        {% if m == 'invite' %}
+                            <span class="badge" style="background:#0d6efd;">{{ msg.method }}</span>
+                        {% elif m in ['bye','cancel'] %}
+                            <span class="badge" style="background:#fd7e14;">{{ msg.method }}</span>
+                        {% elif m == 'ack' %}
+                            <span class="badge" style="background:#20c997;">{{ msg.method }}</span>
+                        {% elif m == 'register' %}
+                            <span class="badge" style="background:#6f42c1;">{{ msg.method }}</span>
+                        {% elif msg.method %}
+                            <span class="badge" style="background:#6c757d;">{{ msg.method }}</span>
+                        {% else %}
+                            <span class="text-secondary">—</span>
+                        {% endif %}
+                    </td>
+                    <td style="font-size:0.72rem;">{{ msg.cseq or '—' }}</td>
+                    <td style="font-size:0.72rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                        {{ msg.user_agent or '—' }}
+                    </td>
+                </tr>
+                <tr class="collapse" id="raw-{{ loop.index }}">
+                    <td colspan="7" class="msg-raw p-2">
+                        <pre>{{ msg.raw }}</pre>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% endif %}
+                </tbody>
+            </table>
+        </div>
+        {% if not messages or messages | length == 0 %}
+        <div class="card-body text-center py-4 text-secondary">
+            <i class="bi bi-inbox" style="font-size:2rem;opacity:0.4;"></i>
+            <p class="mt-2 mb-0">No SIP messages found.</p>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- =========================================================== SESSION TAB -->
+    {% if tab == 'session' %}
+    <div class="card" style="border-top-left-radius:0;">
+        <div class="card-body">
+        {% if session is defined and session %}
+        <!-- Top summary row -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-5">
+                <div class="session-card" style="background:#1a2035;border:1px solid #2a3050;">
+                    <div class="session-metric-label mb-1">Call-ID</div>
+                    <div style="font-family:monospace;font-size:0.78rem;word-break:break-all;">
+                        {{ session.callid or callid }}
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="session-card" style="background:#1a2035;border:1px solid #2a3050;">
+                    <div class="session-metric-label mb-1">Duration</div>
+                    <div class="session-metric">{{ session.duration_str }}</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="session-card" style="background:#1a2035;border:1px solid #2a3050;">
+                    <div class="session-metric-label mb-1">Status</div>
+                    <div class="session-metric">
+                        {% if session.status == 'Finished' %}
+                            <span style="color:#198754;">{{ session.status }}</span>
+                        {% elif session.status == 'Answered' %}
+                            <span style="color:#0dcaf0;">{{ session.status }}</span>
+                        {% elif session.status == 'Cancelled' %}
+                            <span style="color:#dc3545;">{{ session.status }}</span>
+                        {% else %}
+                            <span style="color:#adb5bd;">{{ session.status }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- UAC → UAS card with chart -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-7">
+                <div class="session-card" style="background:#1a2035;border:1px solid #2a3050;">
+                    <div class="session-metric-label mb-2">Call Parties</div>
+                    <div class="d-flex gap-4">
+                        <div>
+                            <div style="font-size:0.72rem;color:#6c757d;">From (UAC)</div>
+                            <div style="font-weight:600;">{{ session.from_user or '—' }}</div>
+                            <div style="font-size:0.75rem;color:#aaa;font-family:monospace;">{{ session.src_addr }}</div>
+                        </div>
+                        <div style="align-self:center;font-size:1.2rem;color:#6c757d;">→</div>
+                        <div>
+                            <div style="font-size:0.72rem;color:#6c757d;">To (UAS)</div>
+                            <div style="font-weight:600;">{{ session.to_user or '—' }}</div>
+                            <div style="font-size:0.75rem;color:#aaa;font-family:monospace;">{{ session.dst_addr }}</div>
+                        </div>
+                    </div>
+                    {% if session.ruri %}
+                    <div class="mt-2" style="font-size:0.75rem;">
+                        <span class="text-secondary">RURI:</span>
+                        <span class="font-monospace">{{ session.ruri }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-md-5">
+                <div class="session-card" style="background:#1a2035;border:1px solid #2a3050;">
+                    <div class="session-metric-label mb-2">Method Distribution</div>
+                    <div style="position:relative;height:140px;">
+                        <canvas id="method-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Timing metrics -->
+        <div class="row g-3">
+            {% set timings = [
+                ('Ringing Delay',   session.ringing_ms,    '#ffc107', '#212529'),
+                ('Session Duration', session.duration_sec * 1000, '#ffc107', '#212529'),
+                ('Setup Delay',      session.setup_ms,     '#6f42c1', '#fff'),
+                ('Disconnect Delay', session.disconnect_ms,'#6c757d', '#fff'),
+            ] %}
+            {% for label, value_ms, bg, fg in timings %}
+            <div class="col-6 col-md-3">
+                <div class="session-card text-center" style="background:{{ bg }};color:{{ fg }};">
+                    <div style="font-size:0.68rem;opacity:0.85;text-transform:uppercase;letter-spacing:0.05em;">{{ label }}</div>
+                    <div class="session-metric mt-1">
+                        {% if value_ms is none or value_ms == 0 %}—
+                        {% elif value_ms >= 1000 %}{{ (value_ms / 1000) | round(1) }}s
+                        {% else %}{{ value_ms }}ms
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% else %}
+        <p class="text-secondary text-center py-4 mb-0">Session info not available.</p>
+        {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ============================================================== LOGS TAB -->
+    {% if tab == 'logs' %}
+    <div class="card" style="border-top-left-radius:0;">
+        <div class="card-header">
+            <i class="bi bi-journal-text me-2"></i>HEP Logs
+            {% if logs is defined %}<span class="badge bg-secondary ms-1">{{ logs | length }}</span>{% endif %}
+        </div>
+        {% if logs is defined and logs %}
+        <div class="table-responsive">
+            <table class="table table-sm mb-0" style="font-size:0.8rem;">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Source</th>
+                        <th>Log Text</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td style="white-space:nowrap;font-size:0.72rem;" class="text-secondary">{{ log.ts_ms }}</td>
+                    <td style="font-family:monospace;font-size:0.72rem;white-space:nowrap;">{{ log.src_addr }}</td>
+                    <td style="font-size:0.75rem;word-break:break-all;">{{ log.raw }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="card-body text-center py-4 text-secondary">
+            <i class="bi bi-journal" style="font-size:2rem;opacity:0.4;"></i>
+            <p class="mt-2 mb-0">No HEP-LOG entries for this call.</p>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- ============================================================ EXPORT TAB -->
+    {% if tab == 'export' %}
+    <div class="card" style="border-top-left-radius:0;">
+        <div class="card-body">
+            <div class="export-card">
+                <h6 class="mb-3"><i class="bi bi-file-earmark-code me-2"></i>Export Call Data</h6>
+                <dl class="row mb-4" style="font-size:0.85rem;">
+                    <dt class="col-4 text-secondary">Call-ID</dt>
+                    <dd class="col-8 font-monospace" style="word-break:break-all;">{{ callid }}</dd>
+                    <dt class="col-4 text-secondary">Messages</dt>
+                    <dd class="col-8">{{ total_messages or 0 }}</dd>
+                    <dt class="col-4 text-secondary">Logs</dt>
+                    <dd class="col-8">{{ (logs | length) if logs else 0 }}</dd>
+                </dl>
+                <a href="/homer/call/{{ callid | urlencode }}/export.json?id={{ record_id }}&ts={{ ts }}"
+                   class="btn btn-primary" download>
+                    <i class="bi bi-download me-2"></i>Download JSON
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+</div><!-- .tab-content -->
+</div><!-- .container-fluid -->
+
+<!-- SIP Message Detail Modal -->
+<div class="modal fade" id="sipMsgModal" tabindex="-1" aria-labelledby="sipMsgModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content" style="background:#1a1a2e;border:1px solid #333;">
+            <div class="modal-header" style="border-bottom:1px solid #333;padding:0.6rem 1rem;">
+                <div class="d-flex align-items-center gap-3 flex-wrap" style="flex:1;min-width:0;">
+                    <h6 class="modal-title mb-0" id="sipMsgModalLabel" style="font-size:0.85rem;">SIP Message</h6>
+                    <span id="modal-method-badge"></span>
+                    <span id="modal-addrs" style="font-family:monospace;font-size:0.75rem;color:#adb5bd;"></span>
+                    <span id="modal-offset" style="font-size:0.72rem;color:#6c757d;"></span>
+                </div>
+                <button type="button" class="btn-close btn-close-white btn-sm" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <pre id="modal-raw" style="background:#111;color:#c8e6c9;font-size:0.73rem;padding:1rem;margin:0;white-space:pre;overflow:auto;max-height:70vh;border:none;"></pre>
+            </div>
+            <div class="modal-footer" style="border-top:1px solid #333;padding:0.4rem 1rem;justify-content:flex-start;gap:0.5rem;">
+                <button class="btn btn-sm btn-outline-secondary" onclick="copyModalRaw()">
+                    <i class="bi bi-clipboard me-1"></i>Copy
+                </button>
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+{% if tab == 'flow' and messages is defined and messages %}
+<script>
+(function() {
+    // Build a compact messages index for the modal (only fields needed)
+    const MSGS = {{ messages | tojson }};
+
+    window.showFlowMsg = function(idx) {
+        const msg = MSGS[idx];
+        if (!msg) return;
+
+        // Method badge
+        const methodColors = {
+            'INVITE': '#0d6efd', 'BYE': '#fd7e14', 'CANCEL': '#fd7e14',
+            'ACK': '#20c997', 'REGISTER': '#6f42c1'
+        };
+        const m = (msg.method || '').toUpperCase();
+        const color = methodColors[m] || '#6c757d';
+        const badge = m
+            ? `<span class="badge" style="background:${color};font-size:0.75rem;">${m}</span>`
+            : '';
+        document.getElementById('modal-method-badge').innerHTML = badge;
+        document.getElementById('modal-addrs').textContent =
+            (msg.src_addr || '') + ' → ' + (msg.dst_addr || '');
+        document.getElementById('modal-offset').textContent =
+            '+' + (msg.offset_ms || 0) + ' ms';
+        document.getElementById('modal-raw').textContent = msg.raw || '';
+
+        const modal = new bootstrap.Modal(document.getElementById('sipMsgModal'));
+        modal.show();
+    };
+
+    window.copyModalRaw = function() {
+        const text = document.getElementById('modal-raw').textContent;
+        navigator.clipboard.writeText(text).then(() => {
+            const btn = document.querySelector('#sipMsgModal .btn-outline-secondary');
+            if (btn) { btn.innerHTML = '<i class="bi bi-check me-1"></i>Copied'; setTimeout(() => { btn.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copy'; }, 1500); }
+        });
+    };
+})();
+</script>
+{% endif %}
+{% if tab == 'session' and session is defined and session and session.method_counts %}
+<script>
+(function() {
+    const ctx = document.getElementById('method-chart');
+    if (!ctx) return;
+    const counts = {{ session.method_counts | tojson }};
+    const labels = Object.keys(counts);
+    const values = Object.values(counts);
+    const palette = ['#0d6efd','#198754','#fd7e14','#dc3545','#6f42c1','#0dcaf0','#20c997','#ffc107'];
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: values,
+                backgroundColor: palette.slice(0, labels.length),
+                borderWidth: 1,
+                borderColor: '#1a2035',
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: { color: '#adb5bd', font: { size: 11 }, boxWidth: 14 }
+                }
+            }
+        }
+    });
+})();
+</script>
+{% endif %}
+{% endblock %}
