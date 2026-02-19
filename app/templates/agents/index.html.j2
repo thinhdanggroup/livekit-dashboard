@@ -1,0 +1,264 @@
+{% extends "base.html.j2" %}
+
+{% block title %}Agents - LiveKit Dashboard{% endblock %}
+{% block page_header %}
+<div>
+    <h1 class="page-title">Agents</h1>
+    <p class="page-subtitle">Monitor and manage AI agent dispatches</p>
+</div>
+<div class="top-bar-actions">
+    <!-- Auto-refresh control -->
+    <div class="d-flex align-items-center gap-1">
+        <a href="/agents?force=1" id="refresh-btn" title="Refresh now (bypass cache)"
+           class="btn btn-secondary btn-sm px-2">
+            <i class="bi bi-arrow-repeat"></i>
+        </a>
+        <select id="refresh-select" class="form-select form-select-sm" style="width:auto;">
+            <option value="0" selected>Auto-refresh off</option>
+            <option value="60">Every 1 min</option>
+            <option value="300">Every 5 min</option>
+            <option value="600">Every 10 min</option>
+            <option value="900">Every 15 min</option>
+        </select>
+    </div>
+    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createDispatchModal">
+        <i class="bi bi-plus-circle"></i> Dispatch agent
+    </button>
+    <div class="user-menu">
+        <i class="bi bi-person-circle"></i>
+        <span>{{ current_user or 'admin' }}</span>
+    </div>
+    <a href="/logout" class="btn btn-secondary btn-sm">
+        <i class="bi bi-box-arrow-right"></i> Logout
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Summary Cards -->
+<div class="row g-3 mb-4" id="summary-cards">
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="text-muted small text-uppercase fw-semibold mb-1">Agents deployed</div>
+                        <div class="fs-2 fw-bold">{{ total_agents }}</div>
+                    </div>
+                    <div class="text-primary" style="font-size:2rem;opacity:.5;"><i class="bi bi-robot"></i></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="text-muted small text-uppercase fw-semibold mb-1">Concurrent agent sessions</div>
+                        <div class="fs-2 fw-bold">{{ total_sessions }}</div>
+                    </div>
+                    <div class="text-success" style="font-size:2rem;opacity:.5;"><i class="bi bi-activity"></i></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="text-muted small text-uppercase fw-semibold mb-1">Total dispatches</div>
+                        <div class="fs-2 fw-bold">{{ total_dispatches }}</div>
+                    </div>
+                    <div class="text-info" style="font-size:2rem;opacity:.5;"><i class="bi bi-send"></i></div>
+                </div>
+                <div class="text-muted" style="font-size:0.75rem;margin-top:.5rem;">
+                    SDK latency: {{ latency_ms }}ms
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Agents Table -->
+<div class="d-flex justify-content-between align-items-center mb-2">
+    <h5 class="mb-0">Your agents</h5>
+</div>
+
+<div class="card" id="agents-table">
+    <div class="card-body p-0">
+        {% if agent_groups %}
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Agent</th>
+                        <th>Sessions</th>
+                        <th>Rooms</th>
+                        <th>Status</th>
+                        <th>Deployed</th>
+                        <th style="text-align:right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for agent_name, dispatches in agent_groups.items() %}
+                    {% set running = dispatches | selectattr('status', 'equalto', 'running') | list | length %}
+                    {% set first = dispatches[0] %}
+                    <tr>
+                        <!-- Agent name + latest dispatch ID -->
+                        <td>
+                            <a href="/agents/{{ agent_name | urlencode }}"
+                               class="fw-semibold text-decoration-none"
+                               style="color:var(--text-primary);">{{ agent_name }}</a>
+                            <div class="d-flex align-items-center gap-1 mt-1">
+                                <span class="text-muted" style="font-size:.75rem;font-family:monospace;">
+                                    {{ first.id[:22] }}…
+                                </span>
+                                <button class="btn btn-link p-0 copy-btn" data-copy="{{ first.id }}"
+                                        title="Copy dispatch ID" style="font-size:.75rem;line-height:1;">
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                            </div>
+                        </td>
+
+                        <!-- Concurrent sessions -->
+                        <td>{{ running }}</td>
+
+                        <!-- Room badges -->
+                        <td>
+                            {% for d in dispatches %}
+                            <span class="badge bg-secondary me-1">{{ d.room | truncate(30, true, '…') }}</span>
+                            {% endfor %}
+                        </td>
+
+                        <!-- Status -->
+                        <td>
+                            <span class="badge {% if running > 0 %}bg-success{% else %}bg-secondary{% endif %}">
+                                {% if running > 0 %}RUNNING{% else %}PENDING{% endif %}
+                            </span>
+                        </td>
+
+                        <!-- Deployed -->
+                        <td class="text-muted" style="font-size:.85rem;white-space:nowrap;">
+                            {{ first.created_at or '—' }}
+                        </td>
+
+                        <!-- Actions -->
+                        <td style="text-align:right;">
+                            <div class="d-flex justify-content-end gap-1">
+                                <a href="/agents/{{ agent_name | urlencode }}"
+                                   class="btn btn-sm btn-secondary" title="View detail">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-secondary dropdown-toggle"
+                                            data-bs-toggle="dropdown" aria-expanded="false"
+                                            title="Delete a dispatch">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        {% for d in dispatches %}
+                                        <li>
+                                            <form method="post" action="/agents/{{ d.id }}/delete"
+                                                  onsubmit="return confirm('Delete dispatch from room {{ d.room }}?')">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                                <input type="hidden" name="room" value="{{ d.room }}">
+                                                <button type="submit" class="dropdown-item text-danger" style="font-size:.85rem;">
+                                                    <i class="bi bi-trash me-2"></i>{{ d.room | truncate(28, true, '…') }}
+                                                </button>
+                                            </form>
+                                        </li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state py-4">
+            <div class="empty-state-icon"><i class="bi bi-robot"></i></div>
+            <div class="empty-state-title">No agent dispatches found</div>
+            <div class="empty-state-description">
+                Dispatch an agent to a room to get started.<br>
+                Agents must be registered with an <code>agent_name</code>.
+            </div>
+            <button type="button" class="btn btn-primary mt-3"
+                    data-bs-toggle="modal" data-bs-target="#createDispatchModal">
+                <i class="bi bi-plus-circle"></i> Dispatch agent
+            </button>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Create Dispatch Modal -->
+<div class="modal fade" id="createDispatchModal" tabindex="-1" aria-labelledby="createDispatchModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="/agents/dispatch">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="createDispatchModalLabel">Dispatch an agent</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="dispatch-agent-name" class="form-label">Agent name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="dispatch-agent-name" name="agent_name" required
+                               placeholder="e.g. my-agent">
+                        <div class="form-text">Must match the <code>agent_name</code> your agent was registered with.</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="dispatch-room" class="form-label">Room <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="dispatch-room" name="room" required
+                               placeholder="e.g. my-room">
+                        <div class="form-text">The room will be created automatically if it doesn't exist.</div>
+                    </div>
+                    <div class="form-group mb-0">
+                        <label for="dispatch-metadata" class="form-label">Metadata (optional)</label>
+                        <textarea class="form-control" id="dispatch-metadata" name="metadata" rows="2"
+                                  placeholder='{"key": "value"}'></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Dispatch</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Auto-refresh — navigates to ?force=1 so the cache is bypassed each time
+const refreshSelect = document.getElementById('refresh-select');
+let refreshTimer = null;
+
+refreshSelect.addEventListener('change', function () {
+    clearInterval(refreshTimer);
+    const seconds = parseInt(this.value, 10);
+    if (seconds > 0) {
+        refreshTimer = setInterval(() => { location.href = '/agents?force=1'; }, seconds * 1000);
+    }
+});
+
+// Copy to clipboard
+document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', function () {
+        const text = this.dataset.copy;
+        navigator.clipboard.writeText(text).then(() => {
+            const icon = this.querySelector('i');
+            icon.className = 'bi bi-clipboard-check';
+            setTimeout(() => { icon.className = 'bi bi-clipboard'; }, 1500);
+        });
+    });
+});
+</script>
+{% endblock %}

@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from starlette.middleware.sessions import SessionMiddleware
 
-from app.routes import overview, rooms, egress, sip, settings, sandbox, auth
+from app.routes import overview, rooms, egress, sip, settings, sandbox, auth, agents
 from app.security.csrf import get_csrf_token
 
 
@@ -89,6 +89,7 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 # Include routers
 app.include_router(overview.router, tags=["Overview"])
+app.include_router(agents.router, tags=["Agents"])
 app.include_router(rooms.router, tags=["Rooms"])
 app.include_router(egress.router, tags=["Egress"])
 app.include_router(sip.router, tags=["SIP"])

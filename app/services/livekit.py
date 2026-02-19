@@ -9,6 +9,8 @@ from typing import List, Optional, Tuple, Dict, Any
 
 from livekit import api, rtc
 
+from app.services import cache as dispatch_cache
+
 
 class LiveKitClient:
     """Wrapper for LiveKit SDK clients with error handling and metrics - Pure Async"""
@@ -973,6 +975,72 @@ class LiveKitClient:
         lk = await self._get_api()
         req = api.DeleteSIPDispatchRuleRequest(sip_dispatch_rule_id=sip_dispatch_rule_id)
         return await lk.sip.delete_dispatch_rule(req)
+
+    # Agent Dispatch Management
+    async def list_dispatches_in_room(self, room_name: str) -> List:
+        """List all agent dispatches in a specific room."""
+        lk = await self._get_api()
+        return await lk.agent_dispatch.list_dispatch(room_name)
+
+    async def list_all_dispatches(self) -> Tuple[List, float]:
+        """List all dispatches across rooms with three-layer optimisation:
+
+        A) TTL cache  — returns the previous result immediately if it is
+                        younger than cache.TTL seconds.
+        B) Filtering  — only interrogates rooms that currently have at least
+                        one participant; agents appear as participants, so
+                        empty rooms can be skipped without missing real data.
+        C) Concurrency — remaining rooms are queried in parallel, bounded by
+                        _DISPATCH_CONCURRENCY to avoid flooding the server.
+
+        503 'no response from servers' is expected for rooms that have no
+        agent worker connected and is suppressed silently.
+        """
+        # A — cache hit
+        if dispatch_cache.is_fresh(self.url):
+            entry = dispatch_cache.get(self.url)
+            return entry["data"], entry["latency"]
+
+        t0 = time.perf_counter()
+        rooms, _ = await self.list_rooms()
+
+        # B — skip rooms with no participants (agents join as participants)
+        candidates = [r for r in rooms if r.num_participants > 0]
+
+        # C — parallel fetch with bounded concurrency
+        sem = asyncio.Semaphore(dispatch_cache.CONCURRENCY)
+
+        async def _fetch(room_name: str) -> List:
+            async with sem:
+                try:
+                    return await self.list_dispatches_in_room(room_name)
+                except Exception as e:
+                    err = str(e)
+                    if "503" not in err and "no response from servers" not in err:
+                        print(f"DEBUG: Unexpected dispatch error for room {room_name}: {e}")
+                    return []
+
+        results = await asyncio.gather(*[_fetch(r.name) for r in candidates])
+        all_dispatches = [d for batch in results for d in batch]
+        latency = time.perf_counter() - t0
+
+        dispatch_cache.set(self.url, all_dispatches, latency)
+        return all_dispatches, latency
+
+    async def create_dispatch(self, agent_name: str, room: str, metadata: str = "") -> Any:
+        """Create an explicit agent dispatch to a room."""
+        lk = await self._get_api()
+        req = api.CreateAgentDispatchRequest(agent_name=agent_name, room=room, metadata=metadata)
+        result = await lk.agent_dispatch.create_dispatch(req)
+        dispatch_cache.invalidate(self.url)
+        return result
+
+    async def delete_dispatch(self, dispatch_id: str, room: str) -> Any:
+        """Delete an agent dispatch."""
+        lk = await self._get_api()
+        result = await lk.agent_dispatch.delete_dispatch(dispatch_id, room)
+        dispatch_cache.invalidate(self.url)
+        return result
 
     # Room Analytics
     async def get_room_analytics(self) -> dict:
