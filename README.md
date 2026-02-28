@@ -179,20 +179,20 @@ ENABLE_SIP=false
 
 | Variable             | Required | Default    | Description                                                       |
 | -------------------- | -------- | ---------- | ----------------------------------------------------------------- |
-| `LIVEKIT_URL`        | ✅       | -          | LiveKit server URL (e.g., `https://your-server.com`)              |
-| `LIVEKIT_API_KEY`    | ✅       | -          | LiveKit API key                                                   |
-| `LIVEKIT_API_SECRET` | ✅       | -          | LiveKit API secret                                                |
-| `ADMIN_USERNAME`     | ✅       | `admin`    | Dashboard admin username                                          |
-| `ADMIN_PASSWORD`     | ✅       | `changeme` | Dashboard admin password                                          |
-| `APP_SECRET_KEY`     | ✅       | -          | Secret key for CSRF tokens (generate with `openssl rand -hex 32`) |
-| `DEBUG`              | ❌       | `false`    | Enable debug mode                                                 |
-| `HOST`               | ❌       | `0.0.0.0`  | Host to bind to                                                   |
-| `PORT`               | ❌       | `8000`     | Port to listen on                                                 |
-| `ENABLE_SIP`         | ❌       | `false`    | Enable SIP features                                               |
-| `ENABLE_HOMER`       | ❌       | `false`    | Enable Homer SIP Monitor tab                                      |
-| `HOMER_URL`          | ❌*      | -          | Homer server base URL (e.g., `https://homer.example.com`)         |
-| `HOMER_USERNAME`     | ❌*      | -          | Homer login username                                              |
-| `HOMER_PASSWORD`     | ❌*      | -          | Homer login password                                              |
+| `LIVEKIT_URL`        | ✅        | -          | LiveKit server URL (e.g., `https://your-server.com`)              |
+| `LIVEKIT_API_KEY`    | ✅        | -          | LiveKit API key                                                   |
+| `LIVEKIT_API_SECRET` | ✅        | -          | LiveKit API secret                                                |
+| `ADMIN_USERNAME`     | ✅        | `admin`    | Dashboard admin username                                          |
+| `ADMIN_PASSWORD`     | ✅        | `changeme` | Dashboard admin password                                          |
+| `APP_SECRET_KEY`     | ✅        | -          | Secret key for CSRF tokens (generate with `openssl rand -hex 32`) |
+| `DEBUG`              | ❌        | `false`    | Enable debug mode                                                 |
+| `HOST`               | ❌        | `0.0.0.0`  | Host to bind to                                                   |
+| `PORT`               | ❌        | `8000`     | Port to listen on                                                 |
+| `ENABLE_SIP`         | ❌        | `false`    | Enable SIP features                                               |
+| `ENABLE_HOMER`       | ❌        | `false`    | Enable Homer SIP Monitor tab                                      |
+| `HOMER_URL`          | ❌*       | -          | Homer server base URL (e.g., `https://homer.example.com`)         |
+| `HOMER_USERNAME`     | ❌*       | -          | Homer login username                                              |
+| `HOMER_PASSWORD`     | ❌*       | -          | Homer login password                                              |
 
 > \* Required when `ENABLE_HOMER=true`
 
@@ -215,6 +215,8 @@ ENABLE_SIP=false
 
 #### Rooms (`/rooms`)
 
+![Rooms](./docs/images/dashboard-rooms.png)
+
 - List all active rooms
 - Create new rooms with custom settings
 - View room details and participants
@@ -223,12 +225,16 @@ ENABLE_SIP=false
 
 #### Egress (`/egress`)
 
+![Egress](./docs/images/dashboard-egress.png)
+
 - List active egress jobs
 - Start room composite recordings
 - Stop active recordings
 - View file outputs and download URLs
 
 #### Agents (`/agents`)
+
+![Agents](./docs/images/dashboard-agents.png)
 
 - Fleet overview — all agent dispatches grouped by agent name
 - Per-agent detail page with job status breakdown and success rate chart
@@ -238,11 +244,16 @@ ENABLE_SIP=false
 
 #### SIP (`/sip-outbound`, `/sip-inbound`)
 
+![SIP Outbound](./docs/images/dashboard-sip-outbound.png)
+![SIP Inbound](./docs/images/dashboard-sip-inbound.png)
+
 - View configured SIP trunks
 - Create outbound SIP calls
 - View inbound dispatch rules
 
 #### Homer SIP Monitor (`/homer`) *(optional)*
+
+![Homer SIP Monitor](./docs/images/dashboard-homer.png)
 
 Requires `ENABLE_HOMER=true` and Homer/SIPCAPTURE credentials in your `.env`.
 
@@ -257,12 +268,16 @@ Requires `ENABLE_HOMER=true` and Homer/SIPCAPTURE credentials in your `.env`.
 
 #### Token Generator (`/sandbox`)
 
+![Token Generator](./docs/images/dashboard-sandbox.png)
+
 - Generate test tokens for development
 - Customize permissions and TTL
 - Copy tokens to clipboard
 - Quick links to test apps
 
 #### Settings (`/settings`)
+
+![Settings](./docs/images/dashboard-settings.png)
 
 - View server configuration
 - Check connection status
@@ -436,30 +451,30 @@ make check
 
 ## 📝 API Endpoints
 
-| Endpoint               | Method | Description        | Auth Required |
-| ---------------------- | ------ | ------------------ | ------------- |
-| `/`                    | GET    | Overview dashboard | ✅            |
-| `/rooms`               | GET    | List rooms         | ✅            |
-| `/rooms`               | POST   | Create room        | ✅            |
-| `/rooms/{name}`        | GET    | Room details       | ✅            |
-| `/rooms/{name}/delete` | POST   | Delete room        | ✅            |
-| `/rooms/{name}/token`  | POST   | Generate token     | ✅            |
-| `/egress`              | GET    | List egress jobs   | ✅            |
-| `/egress/start`        | POST   | Start egress       | ✅            |
-| `/egress/{id}/stop`    | POST   | Stop egress        | ✅            |
-| `/agents`              | GET    | Agent fleet overview | ✅          |
-| `/agents/{name}`       | GET    | Per-agent detail   | ✅            |
-| `/agents/dispatch`     | POST   | Create dispatch    | ✅            |
-| `/agents/{id}/delete`  | POST   | Delete dispatch    | ✅            |
-| `/sip-outbound`        | GET    | SIP outbound page  | ✅            |
-| `/sip-inbound`         | GET    | SIP inbound page   | ✅            |
-| `/homer`               | GET    | Homer SIP search   | ✅            |
-| `/homer/call/{callid}` | GET    | Homer call detail  | ✅            |
-| `/homer/call/{callid}/export.json` | GET | Export call JSON | ✅      |
-| `/sandbox`             | GET    | Token generator    | ✅            |
-| `/settings`            | GET    | Settings page      | ✅            |
-| `/logout`              | GET    | Logout page        | ❌            |
-| `/health`              | GET    | Health check       | ❌            |
+| Endpoint                           | Method | Description          | Auth Required |
+| ---------------------------------- | ------ | -------------------- | ------------- |
+| `/`                                | GET    | Overview dashboard   | ✅             |
+| `/rooms`                           | GET    | List rooms           | ✅             |
+| `/rooms`                           | POST   | Create room          | ✅             |
+| `/rooms/{name}`                    | GET    | Room details         | ✅             |
+| `/rooms/{name}/delete`             | POST   | Delete room          | ✅             |
+| `/rooms/{name}/token`              | POST   | Generate token       | ✅             |
+| `/egress`                          | GET    | List egress jobs     | ✅             |
+| `/egress/start`                    | POST   | Start egress         | ✅             |
+| `/egress/{id}/stop`                | POST   | Stop egress          | ✅             |
+| `/agents`                          | GET    | Agent fleet overview | ✅             |
+| `/agents/{name}`                   | GET    | Per-agent detail     | ✅             |
+| `/agents/dispatch`                 | POST   | Create dispatch      | ✅             |
+| `/agents/{id}/delete`              | POST   | Delete dispatch      | ✅             |
+| `/sip-outbound`                    | GET    | SIP outbound page    | ✅             |
+| `/sip-inbound`                     | GET    | SIP inbound page     | ✅             |
+| `/homer`                           | GET    | Homer SIP search     | ✅             |
+| `/homer/call/{callid}`             | GET    | Homer call detail    | ✅             |
+| `/homer/call/{callid}/export.json` | GET    | Export call JSON     | ✅             |
+| `/sandbox`                         | GET    | Token generator      | ✅             |
+| `/settings`                        | GET    | Settings page        | ✅             |
+| `/logout`                          | GET    | Logout page          | ❌             |
+| `/health`                          | GET    | Health check         | ❌             |
 
 ## 🤝 Contributing
 
