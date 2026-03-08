@@ -568,6 +568,11 @@ class LiveKitClient:
         auth_username: Optional[str] = None,
         auth_password: Optional[str] = None,
         metadata: Optional[str] = None,
+        headers_to_attributes: Optional[Dict[str, str]] = None,
+        attributes_to_headers: Optional[Dict[str, str]] = None,
+        include_headers: Optional[int] = None,
+        ringing_timeout: Optional[int] = None,
+        max_call_duration: Optional[int] = None,
         **kwargs,
     ):
         """Create a SIP inbound trunk"""
@@ -593,6 +598,20 @@ class LiveKitClient:
             trunk_info.auth_password = auth_password
         if metadata:
             trunk_info.metadata = metadata
+        if headers_to_attributes:
+            for key, value in headers_to_attributes.items():
+                trunk_info.headers_to_attributes[key] = value
+        if attributes_to_headers:
+            for key, value in attributes_to_headers.items():
+                trunk_info.attributes_to_headers[key] = value
+        if include_headers is not None:
+            trunk_info.include_headers = include_headers
+        if ringing_timeout is not None:
+            from google.protobuf.duration_pb2 import Duration
+            trunk_info.ringing_timeout.CopyFrom(Duration(seconds=ringing_timeout))
+        if max_call_duration is not None:
+            from google.protobuf.duration_pb2 import Duration
+            trunk_info.max_call_duration.CopyFrom(Duration(seconds=max_call_duration))
 
         req = api.CreateSIPInboundTrunkRequest(trunk=trunk_info)
         return await lk.sip.create_inbound_trunk(req)
@@ -607,6 +626,11 @@ class LiveKitClient:
         auth_username: Optional[str] = None,
         auth_password: Optional[str] = None,
         metadata: Optional[str] = None,
+        headers_to_attributes: Optional[Dict[str, str]] = None,
+        attributes_to_headers: Optional[Dict[str, str]] = None,
+        include_headers: Optional[int] = None,
+        ringing_timeout: Optional[int] = None,
+        max_call_duration: Optional[int] = None,
         **kwargs,
     ):
         """Update a SIP inbound trunk"""
@@ -632,6 +656,20 @@ class LiveKitClient:
             trunk_info.auth_password = auth_password
         if metadata is not None:
             trunk_info.metadata = metadata
+        if headers_to_attributes is not None:
+            for key, value in headers_to_attributes.items():
+                trunk_info.headers_to_attributes[key] = value
+        if attributes_to_headers is not None:
+            for key, value in attributes_to_headers.items():
+                trunk_info.attributes_to_headers[key] = value
+        if include_headers is not None:
+            trunk_info.include_headers = include_headers
+        if ringing_timeout is not None:
+            from google.protobuf.duration_pb2 import Duration
+            trunk_info.ringing_timeout.CopyFrom(Duration(seconds=ringing_timeout))
+        if max_call_duration is not None:
+            from google.protobuf.duration_pb2 import Duration
+            trunk_info.max_call_duration.CopyFrom(Duration(seconds=max_call_duration))
 
         return await lk.sip.update_inbound_trunk(trunk_id=sip_trunk_id, trunk=trunk_info)
 

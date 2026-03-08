@@ -95,6 +95,18 @@ def _datetimeformat(value: int) -> str:
 
 templates.env.filters["datetimeformat"] = _datetimeformat
 
+
+def _proto_map_tojson(value) -> str:
+    """Convert a protobuf ScalarMapContainer (or any dict-like) to a JSON string."""
+    import json
+    try:
+        return json.dumps(dict(value))
+    except Exception:
+        return "{}"
+
+
+templates.env.filters["proto_map_tojson"] = _proto_map_tojson
+
 # Store templates in app state for route access
 app.state.templates = templates
 

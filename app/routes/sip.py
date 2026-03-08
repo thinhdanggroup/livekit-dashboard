@@ -314,6 +314,11 @@ async def create_sip_inbound_trunk(
     username: Optional[str] = Form(None),
     password: Optional[str] = Form(None),
     metadata: Optional[str] = Form(None),
+    headers_to_attributes: Optional[str] = Form(None),
+    attributes_to_headers: Optional[str] = Form(None),
+    include_headers: Optional[str] = Form(None),
+    ringing_timeout: Optional[str] = Form(None),
+    max_call_duration: Optional[str] = Form(None),
     lk: LiveKitClient = Depends(get_livekit_client),
 ):
     """Create a new SIP inbound trunk"""
@@ -336,6 +341,20 @@ async def create_sip_inbound_trunk(
         if allowed_numbers:
             allowed_numbers_list = [n.strip() for n in allowed_numbers.split(",") if n.strip()]
 
+        headers_to_attrs_dict = None
+        if headers_to_attributes:
+            try:
+                headers_to_attrs_dict = json.loads(headers_to_attributes)
+            except json.JSONDecodeError:
+                pass
+
+        attrs_to_headers_dict = None
+        if attributes_to_headers:
+            try:
+                attrs_to_headers_dict = json.loads(attributes_to_headers)
+            except json.JSONDecodeError:
+                pass
+
         result = await lk.create_sip_inbound_trunk(
             name=trunk_name,
             numbers=numbers_list,
@@ -344,6 +363,11 @@ async def create_sip_inbound_trunk(
             auth_username=username,
             auth_password=password,
             metadata=metadata,
+            headers_to_attributes=headers_to_attrs_dict,
+            attributes_to_headers=attrs_to_headers_dict,
+            include_headers=int(include_headers) if include_headers else None,
+            ringing_timeout=int(ringing_timeout) if ringing_timeout else None,
+            max_call_duration=int(max_call_duration) if max_call_duration else None,
         )
 
         # Success message
@@ -377,6 +401,11 @@ async def update_sip_inbound_trunk(
     username: Optional[str] = Form(None),
     password: Optional[str] = Form(None),
     metadata: Optional[str] = Form(None),
+    headers_to_attributes: Optional[str] = Form(None),
+    attributes_to_headers: Optional[str] = Form(None),
+    include_headers: Optional[str] = Form(None),
+    ringing_timeout: Optional[str] = Form(None),
+    max_call_duration: Optional[str] = Form(None),
     lk: LiveKitClient = Depends(get_livekit_client),
 ):
     """Update an existing SIP inbound trunk"""
@@ -399,6 +428,20 @@ async def update_sip_inbound_trunk(
         if allowed_numbers:
             allowed_numbers_list = [n.strip() for n in allowed_numbers.split(",") if n.strip()]
 
+        headers_to_attrs_dict = None
+        if headers_to_attributes:
+            try:
+                headers_to_attrs_dict = json.loads(headers_to_attributes)
+            except json.JSONDecodeError:
+                pass
+
+        attrs_to_headers_dict = None
+        if attributes_to_headers:
+            try:
+                attrs_to_headers_dict = json.loads(attributes_to_headers)
+            except json.JSONDecodeError:
+                pass
+
         await lk.update_sip_inbound_trunk(
             sip_trunk_id=sip_trunk_id,
             name=trunk_name,
@@ -408,6 +451,11 @@ async def update_sip_inbound_trunk(
             auth_username=username,
             auth_password=password if password else None,
             metadata=metadata,
+            headers_to_attributes=headers_to_attrs_dict,
+            attributes_to_headers=attrs_to_headers_dict,
+            include_headers=int(include_headers) if include_headers else None,
+            ringing_timeout=int(ringing_timeout) if ringing_timeout else None,
+            max_call_duration=int(max_call_duration) if max_call_duration else None,
         )
 
         # Success message

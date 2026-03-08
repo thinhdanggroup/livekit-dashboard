@@ -96,7 +96,20 @@
                         </td>
                         <td>
                             <div class="btn-group btn-group-sm" role="group">
-                                <button class="btn btn-outline-primary" onclick="editTrunk('{{ trunk.sip_trunk_id }}', '{{ trunk.name or '' }}', '{{ trunk.numbers|join(',') if trunk.numbers else '' }}', '{{ trunk.allowed_addresses|join(',') if trunk.allowed_addresses else '' }}', '{{ trunk.allowed_numbers|join(',') if trunk.allowed_numbers else '' }}', '{{ trunk.auth_username or '' }}', '{{ trunk.metadata or '' }}')">
+                                <button class="btn btn-outline-primary"
+                                    data-trunk-id="{{ trunk.sip_trunk_id }}"
+                                    data-trunk-name="{{ trunk.name or '' }}"
+                                    data-trunk-numbers="{{ trunk.numbers|join(',') if trunk.numbers else '' }}"
+                                    data-trunk-allowed-addresses="{{ trunk.allowed_addresses|join(',') if trunk.allowed_addresses else '' }}"
+                                    data-trunk-allowed-numbers="{{ trunk.allowed_numbers|join(',') if trunk.allowed_numbers else '' }}"
+                                    data-trunk-username="{{ trunk.auth_username or '' }}"
+                                    data-trunk-metadata="{{ trunk.metadata or '' }}"
+                                    data-trunk-headers-to-attributes="{{ trunk.headers_to_attributes | proto_map_tojson | e }}"
+                                    data-trunk-attributes-to-headers="{{ trunk.attributes_to_headers | proto_map_tojson | e }}"
+                                    data-trunk-include-headers="{{ trunk.include_headers }}"
+                                    data-trunk-ringing-timeout="{{ trunk.ringing_timeout.seconds if trunk.ringing_timeout and trunk.ringing_timeout.seconds else '' }}"
+                                    data-trunk-max-call-duration="{{ trunk.max_call_duration.seconds if trunk.max_call_duration and trunk.max_call_duration.seconds else '' }}"
+                                    onclick="editTrunk(this)">
                                     <i class="bi bi-pencil"></i>
                                 </button>
                                 <button class="btn btn-outline-danger" onclick="confirmDeleteTrunk('{{ trunk.sip_trunk_id }}', '{{ trunk.name or 'Unnamed' }}')">
@@ -335,6 +348,44 @@
                         <label for="metadata" class="form-label">Metadata (Optional)</label>
                         <textarea class="form-control" id="metadata" name="metadata" rows="2" placeholder="Additional metadata"></textarea>
                     </div>
+                    <h6 class="border-top pt-3 mb-3">
+                        <i class="bi bi-tags"></i> Header Mapping (Optional)
+                    </h6>
+                    <div class="mb-3">
+                        <label for="headers_to_attributes" class="form-label">Headers to Attributes</label>
+                        <textarea class="form-control font-monospace" id="headers_to_attributes" name="headers_to_attributes" rows="2" placeholder='{"X-Custom-Header": "participant_attr"}'></textarea>
+                        <small class="form-text text-muted">JSON map of SIP X-* header names to participant attribute names</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="attributes_to_headers" class="form-label">Attributes to Headers</label>
+                        <textarea class="form-control font-monospace" id="attributes_to_headers" name="attributes_to_headers" rows="2" placeholder='{"participant_attr": "X-Custom-Header"}'></textarea>
+                        <small class="form-text text-muted">JSON map of participant attribute names to SIP header names</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="include_headers" class="form-label">Include Headers</label>
+                        <select class="form-control" id="include_headers" name="include_headers">
+                            <option value="">Default</option>
+                            <option value="0">No Headers</option>
+                            <option value="1">X-Headers Only</option>
+                            <option value="2">All Headers</option>
+                        </select>
+                        <small class="form-text text-muted">Specifies which SIP headers are mapped to participant attributes</small>
+                    </div>
+                    <h6 class="border-top pt-3 mb-3">
+                        <i class="bi bi-clock"></i> Timeouts (Optional)
+                    </h6>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="ringing_timeout" class="form-label">Ringing Timeout (seconds)</label>
+                            <input type="number" class="form-control" id="ringing_timeout" name="ringing_timeout" min="0" placeholder="e.g., 30">
+                            <small class="form-text text-muted">Maximum time for the call to ring</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="max_call_duration" class="form-label">Max Call Duration (seconds)</label>
+                            <input type="number" class="form-control" id="max_call_duration" name="max_call_duration" min="0" placeholder="e.g., 3600">
+                            <small class="form-text text-muted">Maximum duration of the call</small>
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -393,6 +444,44 @@
                     <div class="mb-3">
                         <label for="edit_metadata" class="form-label">Metadata (Optional)</label>
                         <textarea class="form-control" id="edit_metadata" name="metadata" rows="2"></textarea>
+                    </div>
+                    <h6 class="border-top pt-3 mb-3">
+                        <i class="bi bi-tags"></i> Header Mapping (Optional)
+                    </h6>
+                    <div class="mb-3">
+                        <label for="edit_headers_to_attributes" class="form-label">Headers to Attributes</label>
+                        <textarea class="form-control font-monospace" id="edit_headers_to_attributes" name="headers_to_attributes" rows="2" placeholder='{"X-Custom-Header": "participant_attr"}'></textarea>
+                        <small class="form-text text-muted">JSON map of SIP X-* header names to participant attribute names</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_attributes_to_headers" class="form-label">Attributes to Headers</label>
+                        <textarea class="form-control font-monospace" id="edit_attributes_to_headers" name="attributes_to_headers" rows="2" placeholder='{"participant_attr": "X-Custom-Header"}'></textarea>
+                        <small class="form-text text-muted">JSON map of participant attribute names to SIP header names</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_include_headers" class="form-label">Include Headers</label>
+                        <select class="form-control" id="edit_include_headers" name="include_headers">
+                            <option value="">Default</option>
+                            <option value="0">No Headers</option>
+                            <option value="1">X-Headers Only</option>
+                            <option value="2">All Headers</option>
+                        </select>
+                        <small class="form-text text-muted">Specifies which SIP headers are mapped to participant attributes</small>
+                    </div>
+                    <h6 class="border-top pt-3 mb-3">
+                        <i class="bi bi-clock"></i> Timeouts (Optional)
+                    </h6>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_ringing_timeout" class="form-label">Ringing Timeout (seconds)</label>
+                            <input type="number" class="form-control" id="edit_ringing_timeout" name="ringing_timeout" min="0" placeholder="e.g., 30">
+                            <small class="form-text text-muted">Maximum time for the call to ring</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_max_call_duration" class="form-label">Max Call Duration (seconds)</label>
+                            <input type="number" class="form-control" id="edit_max_call_duration" name="max_call_duration" min="0" placeholder="e.g., 3600">
+                            <small class="form-text text-muted">Maximum duration of the call</small>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -1011,16 +1100,40 @@ function copyRuleId(ruleId, button) {
 }
 
 // Edit Trunk
-function editTrunk(trunkId, name, numbers, allowedAddresses, allowedNumbers, username, metadata) {
-    document.getElementById('edit_sip_trunk_id').value = trunkId;
-    document.getElementById('edit_trunk_name').value = name;
-    document.getElementById('edit_numbers').value = numbers;
-    document.getElementById('edit_allowed_addresses').value = allowedAddresses;
-    document.getElementById('edit_allowed_numbers').value = allowedNumbers;
-    document.getElementById('edit_username').value = username;
-    document.getElementById('edit_metadata').value = metadata;
-    document.getElementById('edit_password').value = ''; // Clear password field
-    
+function editTrunk(btn) {
+    var d = btn.dataset;
+    document.getElementById('edit_sip_trunk_id').value = d.trunkId;
+    document.getElementById('edit_trunk_name').value = d.trunkName;
+    document.getElementById('edit_numbers').value = d.trunkNumbers;
+    document.getElementById('edit_allowed_addresses').value = d.trunkAllowedAddresses;
+    document.getElementById('edit_allowed_numbers').value = d.trunkAllowedNumbers;
+    document.getElementById('edit_username').value = d.trunkUsername;
+    document.getElementById('edit_metadata').value = d.trunkMetadata;
+    document.getElementById('edit_password').value = '';
+
+    // Header mapping fields
+    try {
+        var h2a = JSON.parse(d.trunkHeadersToAttributes || '{}');
+        document.getElementById('edit_headers_to_attributes').value = Object.keys(h2a).length ? JSON.stringify(h2a, null, 2) : '';
+    } catch(e) {
+        document.getElementById('edit_headers_to_attributes').value = '';
+    }
+    try {
+        var a2h = JSON.parse(d.trunkAttributesToHeaders || '{}');
+        document.getElementById('edit_attributes_to_headers').value = Object.keys(a2h).length ? JSON.stringify(a2h, null, 2) : '';
+    } catch(e) {
+        document.getElementById('edit_attributes_to_headers').value = '';
+    }
+
+    // Include headers select
+    var includeHeadersVal = d.trunkIncludeHeaders;
+    var includeHeadersSelect = document.getElementById('edit_include_headers');
+    includeHeadersSelect.value = (includeHeadersVal !== '' && includeHeadersVal !== undefined) ? includeHeadersVal : '';
+
+    // Timeout fields
+    document.getElementById('edit_ringing_timeout').value = d.trunkRingingTimeout || '';
+    document.getElementById('edit_max_call_duration').value = d.trunkMaxCallDuration || '';
+
     var modal = new bootstrap.Modal(document.getElementById('editTrunkModal'));
     modal.show();
 }
