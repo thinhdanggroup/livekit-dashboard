@@ -1331,6 +1331,13 @@ function updateDispatchRuleFields(isEdit) {
         if (calleeRandomizeFields) calleeRandomizeFields.style.display = 'block';
         if (pinFields) pinFields.style.display = 'block';
     }
+
+    // Disable the prefix input that is not for the selected type so only one room_prefix is submitted.
+    // (Both inputs use name="room_prefix"; without this, the wrong/empty value can be sent.)
+    var individualPrefixInput = document.getElementById(prefix + 'room_prefix');
+    var calleePrefixInput = document.getElementById(prefix + 'callee_room_prefix');
+    if (individualPrefixInput) individualPrefixInput.disabled = (selectedType !== 'individual');
+    if (calleePrefixInput) calleePrefixInput.disabled = (selectedType !== 'callee');
 }
 
 // Sync form fields to JSON
