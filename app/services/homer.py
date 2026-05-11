@@ -178,6 +178,13 @@ async def search_calls(
     return records, latency_ms
 
 
+_TRANSACTION_FLAGS = {
+    "call":         {"call": True,  "registration": False, "rest": False},
+    "registration": {"call": False, "registration": True,  "rest": False},
+    "default":      {"call": False, "registration": False, "rest": True},
+}
+
+
 async def get_call_transaction(
     url: str,
     token: str,
@@ -185,18 +192,25 @@ async def get_call_transaction(
     record_id: int | str,
     ts_ms: int,
     window_ms: int = 3_600_000,
+    profile: str = DEFAULT_PROFILE,
 ) -> tuple[dict, float]:
     """POST /api/v3/call/transaction and return (response_dict, latency_ms).
 
     window_ms controls the half-width of the timestamp search window around ts_ms.
     Use a wider value (e.g. 30 * 24 * 3_600_000) when the call timestamp is unknown.
+
+    profile selects which Homer 7 transaction table the lookup hits. Setting
+    the wrong profile returns an empty message list, which renders as a blank
+    flow diagram — REGISTERs in particular live in `hep_proto_1_registration`,
+    not `hep_proto_1_call`.
     """
+    profile = _normalize_profile(profile)
     payload = {
         "param": {
-            "transaction": {"call": True, "registration": False, "rest": False},
+            "transaction": _TRANSACTION_FLAGS[profile],
             "limit": 200,
             "orlogic": False,
-            "search": {"1_call": {"id": record_id, "callid": [callid]}},
+            "search": {f"1_{profile}": {"id": record_id, "callid": [callid]}},
             "location": {},
             "timezone": {"value": -180, "name": "Local"},
         },
@@ -244,9 +258,16 @@ class HomerClient:
         )
 
     async def get_call_transaction(
-        self, callid: str, record_id: int | str, ts_ms: int, window_ms: int = 3_600_000
+        self,
+        callid: str,
+        record_id: int | str,
+        ts_ms: int,
+        window_ms: int = 3_600_000,
+        profile: str = DEFAULT_PROFILE,
     ) -> tuple[dict, float]:
-        return await get_call_transaction(self.url, self.token, callid, record_id, ts_ms, window_ms)
+        return await get_call_transaction(
+            self.url, self.token, callid, record_id, ts_ms, window_ms, profile
+        )
 
 
 async def get_homer_client() -> HomerClient:

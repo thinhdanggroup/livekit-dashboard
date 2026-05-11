@@ -586,7 +586,7 @@
                     <dt class="col-4 text-secondary">Logs</dt>
                     <dd class="col-8">{{ (logs | length) if logs else 0 }}</dd>
                 </dl>
-                <a href="/homer/call/{{ callid | urlencode }}/export.json?id={{ record_id }}&ts={{ ts }}"
+                <a href="/homer/call/{{ callid | urlencode }}/export.json?id={{ record_id }}&ts={{ ts }}&profile={{ profile }}"
                    class="btn btn-primary" download>
                     <i class="bi bi-download me-2"></i>Download JSON
                 </a>

@@ -526,6 +526,7 @@ async def homer_call_detail(
     id: Optional[int] = None,
     ts: Optional[int] = None,
     tab: str = "flow",
+    profile: Optional[str] = None,
 ):
     """Homer call detail page with 5 tabs."""
     if not _HOMER_ENABLED():
@@ -535,11 +536,14 @@ async def homer_call_detail(
     error: Optional[str] = None
     detail: dict = {}
     latency_ms: float = 0.0
+    profile = _normalize_profile(profile)
 
     try:
         hc: HomerClient = await get_homer_client()
         ts_ms = ts or int(time.time() * 1000)
-        transaction, latency_ms = await hc.get_call_transaction(callid, id or 0, ts_ms)
+        transaction, latency_ms = await hc.get_call_transaction(
+            callid, id or 0, ts_ms, profile=profile
+        )
         detail = _build_call_detail(transaction)
     except Exception as exc:
         error = str(exc)
@@ -554,6 +558,7 @@ async def homer_call_detail(
             "record_id": id,
             "ts": ts,
             "tab": tab,
+            "profile": profile,
             "latency_ms": round(latency_ms, 1),
             "error": error,
             **detail,
@@ -570,6 +575,7 @@ async def homer_call_export(
     callid: str,
     id: Optional[int] = None,
     ts: Optional[int] = None,
+    profile: Optional[str] = None,
 ):
     """Download raw transaction JSON for a call."""
     if not _HOMER_ENABLED():
@@ -578,7 +584,9 @@ async def homer_call_export(
     try:
         hc: HomerClient = await get_homer_client()
         ts_ms = ts or int(time.time() * 1000)
-        transaction, _ = await hc.get_call_transaction(callid, id or 0, ts_ms)
+        transaction, _ = await hc.get_call_transaction(
+            callid, id or 0, ts_ms, profile=_normalize_profile(profile)
+        )
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
 

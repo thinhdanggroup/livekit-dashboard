@@ -196,7 +196,7 @@
                                         onclick="navigator.clipboard.writeText('{{ call.callid }}')">
                                     <i class="bi bi-clipboard"></i>
                                 </button>
-                                <a href="/homer/call/{{ call.callid | urlencode }}?id={{ call.id }}&ts={{ call.create_date }}"
+                                <a href="/homer/call/{{ call.callid | urlencode }}?id={{ call.id }}&ts={{ call.create_date }}&profile={{ profile }}"
                                    title="{{ call.callid }}">
                                     {{ call.callid[:40] }}{% if call.callid|length > 40 %}…{% endif %}
                                 </a>
