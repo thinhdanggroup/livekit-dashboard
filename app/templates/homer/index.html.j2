@@ -115,6 +115,19 @@
                             <input type="text" name="to_tag" class="form-control form-control-sm"
                                    value="{{ filters.to_tag }}" placeholder="">
                         </div>
+                        <div class="mb-2">
+                            <label class="form-label small mb-1">Type</label>
+                            <select name="profile" class="form-select form-select-sm">
+                                {% for p in profile_choices %}
+                                <option value="{{ p }}" {% if profile == p %}selected{% endif %}>
+                                    {%- if p == "call" -%}Call (INVITE / BYE)
+                                    {%- elif p == "registration" -%}Registration (REGISTER)
+                                    {%- elif p == "default" -%}Other (OPTIONS / MESSAGE / …)
+                                    {%- else -%}{{ p|capitalize }}{%- endif -%}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
                         <div class="mb-3">
                             <label class="form-label small mb-1">Time Range</label>
                             <select name="hours" class="form-select form-select-sm">

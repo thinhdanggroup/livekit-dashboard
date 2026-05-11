@@ -70,13 +70,20 @@ def _build_homer_filters(filters: dict) -> list[dict]:
 
     An empty list [] means "no filter" (return all records).
     """
+    # Homer 7 splits SIP metadata between two JSONB columns on hep_proto_1_*:
+    #   - data_header     → SIP-parsed fields (callid, from_user, method, …)
+    #                        keyed in snake_case
+    #   - protocol_header → packet-level fields (srcIp, dstIp, srcPort, …)
+    #                        keyed in camelCase
+    # Filtering on the wrong column silently returns 0 rows because Homer's
+    # WHERE clause becomes a JSONB lookup against a non-existent key.
     field_map = {
         "callid":    "data_header.callid",
         "from_user": "data_header.from_user",
         "to_user":   "data_header.to_user",
         "method":    "data_header.method",
-        "source_ip": "data_header.src_ip",
-        "dst_ip":    "data_header.dst_ip",
+        "source_ip": "protocol_header.srcIp",
+        "dst_ip":    "protocol_header.dstIp",
         "from_tag":  "data_header.from_tag",
         "to_tag":    "data_header.to_tag",
     }
@@ -88,12 +95,25 @@ def _build_homer_filters(filters: dict) -> list[dict]:
     return result
 
 
+SUPPORTED_PROFILES: tuple[str, ...] = ("call", "registration", "default")
+DEFAULT_PROFILE = "call"
+
+
+def _normalize_profile(profile: str | None) -> str:
+    """Coerce a user-supplied profile string to one of SUPPORTED_PROFILES."""
+    if not profile:
+        return DEFAULT_PROFILE
+    p = profile.strip().lower()
+    return p if p in SUPPORTED_PROFILES else DEFAULT_PROFILE
+
+
 async def search_calls(
     url: str,
     token: str,
     filters: dict,
     time_from_ms: int,
     time_to_ms: int,
+    profile: str = DEFAULT_PROFILE,
     limit: int = 200,
 ) -> tuple[list[dict], float]:
     """
@@ -101,19 +121,26 @@ async def search_calls(
 
     filters: dict with optional keys callid, from_user, to_user, method,
              source_ip, dst_ip, from_tag, to_tag.
+    profile: Homer protocol profile to search. Homer 7 stores SIP traffic in
+             separate tables per transaction type:
+               - "call"         → hep_proto_1_call (INVITE/BYE/CANCEL/…)
+               - "registration" → hep_proto_1_registration (REGISTER)
+               - "default"      → hep_proto_1_default (OPTIONS/MESSAGE/…)
+             Defaults to "call" for back-compat.
     """
+    profile = _normalize_profile(profile)
     payload = {
         "config": {
             "protocol_id": {"name": "SIP", "value": 1},
-            "protocol_profile": {"name": "call", "value": "call"},
+            "protocol_profile": {"name": profile, "value": profile},
             "searchbutton": False,
-            "title": "CALL 2 SIP SEARCH",
+            "title": f"SIP {profile.upper()} SEARCH",
         },
         "param": {
             "transaction": {},
             "limit": limit,
             "orlogic": False,
-            "search": {"1_call": _build_homer_filters(filters)},
+            "search": {f"1_{profile}": _build_homer_filters(filters)},
             "location": {},
             "timezone": {"value": -180, "name": "Local"},
         },
@@ -209,9 +236,12 @@ class HomerClient:
         filters: dict,
         time_from_ms: int,
         time_to_ms: int,
+        profile: str = DEFAULT_PROFILE,
         limit: int = 200,
     ) -> tuple[list[dict], float]:
-        return await search_calls(self.url, self.token, filters, time_from_ms, time_to_ms, limit)
+        return await search_calls(
+            self.url, self.token, filters, time_from_ms, time_to_ms, profile, limit
+        )
 
     async def get_call_transaction(
         self, callid: str, record_id: int | str, ts_ms: int, window_ms: int = 3_600_000
