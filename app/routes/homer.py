@@ -11,7 +11,13 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from app.security.basic_auth import requires_admin, get_current_user
 from app.security.csrf import get_csrf_token
-from app.services.homer import HomerClient, get_homer_client
+from app.services.homer import (
+    DEFAULT_PROFILE,
+    SUPPORTED_PROFILES,
+    HomerClient,
+    _normalize_profile,
+    get_homer_client,
+)
 
 router = APIRouter()
 
@@ -431,6 +437,7 @@ async def homer_index(
     from_tag: Optional[str] = None,
     to_tag: Optional[str] = None,
     hours: int = 168,
+    profile: Optional[str] = None,
     search: Optional[str] = None,  # present when the form was submitted
 ):
     """Homer SIP search page."""
@@ -442,6 +449,7 @@ async def homer_index(
     calls: list[dict] = []
     latency_ms: float = 0.0
     searched = False
+    profile = _normalize_profile(profile)
 
     filters = {
         "callid": callid or "",
@@ -472,7 +480,10 @@ async def homer_index(
             ]
             callid_only = bool(filters["callid"]) and not any(other_filters)
 
-            if callid_only:
+            if callid_only and profile == DEFAULT_PROFILE:
+                # call/transaction endpoint is call-profile-specific; only use
+                # the unbounded callid lookup when we're searching the call
+                # table. Other profiles fall through to the standard search.
                 _THIRTY_DAYS_MS = 30 * 24 * 3_600_000
                 transaction, latency_ms = await hc.get_call_transaction(
                     filters["callid"], 0, now_ms, window_ms=_THIRTY_DAYS_MS
@@ -481,7 +492,9 @@ async def homer_index(
                 calls = [summary] if summary else []
             else:
                 time_from_ms = now_ms - hours * 3_600_000
-                records, latency_ms = await hc.search_calls(filters, time_from_ms, now_ms)
+                records, latency_ms = await hc.search_calls(
+                    filters, time_from_ms, now_ms, profile=profile
+                )
                 calls = _group_calls(records)
         except Exception as exc:
             error = str(exc)
@@ -494,6 +507,8 @@ async def homer_index(
             "csrf_token": get_csrf_token(request),
             "filters": filters,
             "hours": hours,
+            "profile": profile,
+            "profile_choices": SUPPORTED_PROFILES,
             "calls": calls,
             "latency_ms": round(latency_ms, 1),
             "searched": searched,
@@ -511,6 +526,7 @@ async def homer_call_detail(
     id: Optional[int] = None,
     ts: Optional[int] = None,
     tab: str = "flow",
+    profile: Optional[str] = None,
 ):
     """Homer call detail page with 5 tabs."""
     if not _HOMER_ENABLED():
@@ -520,11 +536,14 @@ async def homer_call_detail(
     error: Optional[str] = None
     detail: dict = {}
     latency_ms: float = 0.0
+    profile = _normalize_profile(profile)
 
     try:
         hc: HomerClient = await get_homer_client()
         ts_ms = ts or int(time.time() * 1000)
-        transaction, latency_ms = await hc.get_call_transaction(callid, id or 0, ts_ms)
+        transaction, latency_ms = await hc.get_call_transaction(
+            callid, id or 0, ts_ms, profile=profile
+        )
         detail = _build_call_detail(transaction)
     except Exception as exc:
         error = str(exc)
@@ -539,6 +558,7 @@ async def homer_call_detail(
             "record_id": id,
             "ts": ts,
             "tab": tab,
+            "profile": profile,
             "latency_ms": round(latency_ms, 1),
             "error": error,
             **detail,
@@ -555,6 +575,7 @@ async def homer_call_export(
     callid: str,
     id: Optional[int] = None,
     ts: Optional[int] = None,
+    profile: Optional[str] = None,
 ):
     """Download raw transaction JSON for a call."""
     if not _HOMER_ENABLED():
@@ -563,7 +584,9 @@ async def homer_call_export(
     try:
         hc: HomerClient = await get_homer_client()
         ts_ms = ts or int(time.time() * 1000)
-        transaction, _ = await hc.get_call_transaction(callid, id or 0, ts_ms)
+        transaction, _ = await hc.get_call_transaction(
+            callid, id or 0, ts_ms, profile=_normalize_profile(profile)
+        )
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
 

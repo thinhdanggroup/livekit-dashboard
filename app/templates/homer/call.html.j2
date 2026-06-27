@@ -216,33 +216,33 @@
 <ul class="nav nav-tabs mb-0" id="homer-tabs" role="tablist">
     <li class="nav-item">
         <a class="nav-link {% if tab == 'flow' %}active{% endif %}"
-           href="?id={{ record_id }}&ts={{ ts }}&tab=flow">
+           href="?id={{ record_id }}&ts={{ ts }}&profile={{ profile }}&tab=flow">
             <i class="bi bi-diagram-3 me-1"></i>Flow
         </a>
     </li>
     <li class="nav-item">
         <a class="nav-link {% if tab == 'messages' %}active{% endif %}"
-           href="?id={{ record_id }}&ts={{ ts }}&tab=messages">
+           href="?id={{ record_id }}&ts={{ ts }}&profile={{ profile }}&tab=messages">
             <i class="bi bi-envelope me-1"></i>Messages
             {% if total_messages %}<span class="badge bg-secondary ms-1">{{ total_messages }}</span>{% endif %}
         </a>
     </li>
     <li class="nav-item">
         <a class="nav-link {% if tab == 'session' %}active{% endif %}"
-           href="?id={{ record_id }}&ts={{ ts }}&tab=session">
+           href="?id={{ record_id }}&ts={{ ts }}&profile={{ profile }}&tab=session">
             <i class="bi bi-info-circle me-1"></i>Session Info
         </a>
     </li>
     <li class="nav-item">
         <a class="nav-link {% if tab == 'logs' %}active{% endif %}"
-           href="?id={{ record_id }}&ts={{ ts }}&tab=logs">
+           href="?id={{ record_id }}&ts={{ ts }}&profile={{ profile }}&tab=logs">
             <i class="bi bi-journal-text me-1"></i>Logs
             {% if logs is defined and logs %}<span class="badge bg-secondary ms-1">{{ logs | length }}</span>{% endif %}
         </a>
     </li>
     <li class="nav-item">
         <a class="nav-link {% if tab == 'export' %}active{% endif %}"
-           href="?id={{ record_id }}&ts={{ ts }}&tab=export">
+           href="?id={{ record_id }}&ts={{ ts }}&profile={{ profile }}&tab=export">
             <i class="bi bi-download me-1"></i>Export
         </a>
     </li>
@@ -586,7 +586,7 @@
                     <dt class="col-4 text-secondary">Logs</dt>
                     <dd class="col-8">{{ (logs | length) if logs else 0 }}</dd>
                 </dl>
-                <a href="/homer/call/{{ callid | urlencode }}/export.json?id={{ record_id }}&ts={{ ts }}"
+                <a href="/homer/call/{{ callid | urlencode }}/export.json?id={{ record_id }}&ts={{ ts }}&profile={{ profile }}"
                    class="btn btn-primary" download>
                     <i class="bi bi-download me-2"></i>Download JSON
                 </a>
