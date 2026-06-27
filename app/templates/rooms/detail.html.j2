@@ -17,6 +17,9 @@
         </nav>
     </div>
     <div class="col-md-6 text-end">
+        <button type="button" class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#editRoomModal">
+            <i class="bi bi-pencil"></i> Edit Metadata
+        </button>
         <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#tokenModal">
             <i class="bi bi-key"></i> Generate Join Token
         </button>
@@ -155,13 +158,30 @@
                                     </td>
                                     <td>{{ participant.joined_at }}</td>
                                     <td>
-                                        <form method="post" action="/rooms/{{ room.name }}/participants/{{ participant.identity }}/kick" style="display: inline;">
-                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                            <button type="submit" class="btn btn-sm btn-outline-danger" 
-                                                    onclick="return confirm('Kick participant {{ participant.identity }}?')">
-                                                <i class="bi bi-person-x"></i> Kick
+                                        <div class="btn-group">
+                                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                                data-bs-toggle="modal" data-bs-target="#muteModal"
+                                                data-identity="{{ participant.identity }}"
+                                                data-tracks="{{ participant.tracks | map(attribute='sid') | list | tojson }}"
+                                                data-muted="{{ participant.tracks | map(attribute='muted') | list | tojson }}"
+                                                title="Mute track">
+                                                <i class="bi bi-mic-mute"></i>
                                             </button>
-                                        </form>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                                data-bs-toggle="modal" data-bs-target="#updateParticipantModal"
+                                                data-identity="{{ participant.identity }}"
+                                                data-metadata="{{ participant.metadata or '' }}"
+                                                title="Edit metadata">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <form method="post" action="/rooms/{{ room.name }}/participants/{{ participant.identity }}/kick" style="display: inline;">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger"
+                                                        onclick="return confirm('Kick participant {{ participant.identity }}?')">
+                                                    <i class="bi bi-person-x"></i>
+                                                </button>
+                                            </form>
+                                        </div>
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -175,6 +195,89 @@
                     {% endif %}
                 </div>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Mute Track Modal -->
+<div class="modal fade" id="muteModal" tabindex="-1" aria-labelledby="muteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" id="muteForm" action="/rooms/{{ room.name }}/participants/__identity__/mute">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="muteModalLabel">Mute / Unmute Track</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label">Track</label>
+                        <select class="form-select" name="track_sid" id="mute_track_sid" required></select>
+                    </div>
+                    <div class="form-group mb-0">
+                        <label class="form-label">Action</label>
+                        <select class="form-select" name="muted">
+                            <option value="true">Mute</option>
+                            <option value="false">Unmute</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Apply</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Update Participant Metadata Modal -->
+<div class="modal fade" id="updateParticipantModal" tabindex="-1" aria-labelledby="updateParticipantModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" id="updateParticipantForm" action="/rooms/{{ room.name }}/participants/__identity__/update">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="updateParticipantModalLabel">Update Participant Metadata</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group mb-0">
+                        <label class="form-label">Metadata</label>
+                        <textarea class="form-control" name="metadata" id="edit_participant_metadata" rows="4" placeholder='{"key":"value"}'></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Room Metadata Modal -->
+<div class="modal fade" id="editRoomModal" tabindex="-1" aria-labelledby="editRoomModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="/rooms/{{ room.name }}/update">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editRoomModalLabel">Edit Room Metadata</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted" style="font-size:.85rem;">Only metadata can be updated on a live room.</p>
+                    <div class="form-group mb-0">
+                        <label class="form-label">Metadata</label>
+                        <textarea class="form-control" name="metadata" rows="4">{{ room.metadata or '' }}</textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Save</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -231,6 +334,40 @@
 
 {% block extra_scripts %}
 <script>
+// Mute modal
+document.querySelectorAll('[data-bs-target="#muteModal"]').forEach(btn => {
+    btn.addEventListener('click', function () {
+        const identity = this.dataset.identity;
+        const sids = JSON.parse(this.dataset.tracks || '[]');
+        const muted = JSON.parse(this.dataset.muted || '[]');
+        document.getElementById('muteForm').action = `/rooms/{{ room.name }}/participants/${identity}/mute`;
+        const sel = document.getElementById('mute_track_sid');
+        sel.innerHTML = '';
+        sids.forEach((sid, i) => {
+            const opt = document.createElement('option');
+            opt.value = sid;
+            opt.textContent = `${sid.substring(0, 16)}… (${muted[i] ? 'muted' : 'active'})`;
+            sel.appendChild(opt);
+        });
+        if (sids.length === 0) {
+            const opt = document.createElement('option');
+            opt.textContent = 'No tracks';
+            sel.appendChild(opt);
+        }
+        document.getElementById('muteModalLabel').textContent = `Mute / Unmute: ${identity}`;
+    });
+});
+
+// Update participant modal
+document.querySelectorAll('[data-bs-target="#updateParticipantModal"]').forEach(btn => {
+    btn.addEventListener('click', function () {
+        const identity = this.dataset.identity;
+        document.getElementById('updateParticipantForm').action = `/rooms/{{ room.name }}/participants/${identity}/update`;
+        document.getElementById('edit_participant_metadata').value = this.dataset.metadata;
+        document.getElementById('updateParticipantModalLabel').textContent = `Update Metadata: ${identity}`;
+    });
+});
+
 function confirmDeleteRoom(roomName) {
     if (confirm(`Are you sure you want to close room "${roomName}"?`)) {
         document.getElementById('deleteRoomForm').submit();

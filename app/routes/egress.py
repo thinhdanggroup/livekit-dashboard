@@ -79,6 +79,44 @@ async def start_egress(
     return RedirectResponse(url="/egress", status_code=303)
 
 
+@router.post("/egress/start/track", dependencies=[Depends(requires_admin)])
+async def start_track_egress(
+    request: Request,
+    csrf_token: str = Form(...),
+    room_name: str = Form(...),
+    track_sid: str = Form(...),
+    output_filename: str = Form(...),
+    lk: LiveKitClient = Depends(get_livekit_client),
+):
+    """Start a single-track egress"""
+    await verify_csrf_token(request)
+    try:
+        filename = output_filename.replace("{room}", room_name)
+        filename = filename.replace("{time}", datetime.now().strftime("%Y%m%d_%H%M%S"))
+        await lk.start_track_egress(room_name=room_name, track_sid=track_sid, output_filepath=filename)
+    except Exception as e:
+        print(f"Error starting track egress: {e}")
+    return RedirectResponse(url="/egress", status_code=303)
+
+
+@router.post("/egress/start/web", dependencies=[Depends(requires_admin)])
+async def start_web_egress(
+    request: Request,
+    csrf_token: str = Form(...),
+    url: str = Form(...),
+    output_filename: str = Form(...),
+    lk: LiveKitClient = Depends(get_livekit_client),
+):
+    """Start a web-capture egress"""
+    await verify_csrf_token(request)
+    try:
+        filename = output_filename.replace("{time}", datetime.now().strftime("%Y%m%d_%H%M%S"))
+        await lk.start_web_egress(url=url, output_filepath=filename)
+    except Exception as e:
+        print(f"Error starting web egress: {e}")
+    return RedirectResponse(url="/egress", status_code=303)
+
+
 @router.post("/egress/{egress_id}/stop", dependencies=[Depends(requires_admin)])
 async def stop_egress(
     request: Request,

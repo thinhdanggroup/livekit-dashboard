@@ -82,6 +82,12 @@ class LiveKitClient:
         req = api.DeleteRoomRequest(room=name)
         return await lk.room.delete_room(req)
 
+    async def update_room_metadata(self, room_name: str, metadata: str):
+        """Update a live room's metadata"""
+        lk = await self._get_api()
+        req = api.UpdateRoomMetadataRequest(room=room_name, metadata=metadata)
+        return await lk.room.update_room_metadata(req)
+
     # Participant Management
     async def list_participants(self, room_name: str) -> List:
         """List participants in a room"""
@@ -244,6 +250,86 @@ class LiveKitClient:
         lk = await self._get_api()
         req = api.StopEgressRequest(egress_id=egress_id)
         return await lk.egress.stop_egress(req)
+
+    async def start_track_egress(self, room_name: str, track_sid: str, output_filepath: str):
+        """Start a single-track egress"""
+        lk = await self._get_api()
+        from livekit.protocol.egress import TrackEgressRequest, DirectFileOutput
+        file_output = DirectFileOutput(filepath=output_filepath)
+        req = TrackEgressRequest(room_name=room_name, track_id=track_sid, file=file_output)
+        return await lk.egress.start_track_egress(req)
+
+    async def start_web_egress(self, url: str, output_filepath: str):
+        """Start a web-capture egress"""
+        lk = await self._get_api()
+        file_output = api.EncodedFileOutput(
+            file_type=api.EncodedFileType.MP4,
+            filepath=output_filepath,
+        )
+        req = api.WebEgressRequest(url=url, file_outputs=[file_output])
+        return await lk.egress.start_web_egress(req)
+
+    # Ingress Management
+    async def list_ingress(self, room_name: Optional[str] = None) -> List:
+        """List ingress streams"""
+        lk = await self._get_api()
+        from livekit.protocol.ingress import ListIngressRequest
+        req = ListIngressRequest(room_name=room_name or "")
+        resp = await lk.ingress.list_ingress(req)
+        return list(resp.items) if hasattr(resp, "items") else []
+
+    async def create_ingress(
+        self,
+        ingress_type: str,
+        name: str,
+        room_name: str,
+        participant_identity: Optional[str] = None,
+        participant_name: Optional[str] = None,
+        metadata: Optional[str] = None,
+    ):
+        """Create an ingress stream (RTMP, WHIP, or URL)"""
+        lk = await self._get_api()
+        from livekit.protocol.ingress import CreateIngressRequest, IngressInput
+        type_map = {"rtmp": IngressInput.RTMP_INPUT, "whip": IngressInput.WHIP_INPUT, "url": IngressInput.URL_INPUT}
+        input_type = type_map.get(ingress_type.lower(), IngressInput.RTMP_INPUT)
+        req = CreateIngressRequest(
+            input_type=input_type,
+            name=name,
+            room_name=room_name,
+            participant_identity=participant_identity or "",
+            participant_name=participant_name or "",
+            participant_metadata=metadata or "",
+        )
+        return await lk.ingress.create_ingress(req)
+
+    async def update_ingress(
+        self,
+        ingress_id: str,
+        name: Optional[str] = None,
+        room_name: Optional[str] = None,
+        participant_identity: Optional[str] = None,
+        participant_name: Optional[str] = None,
+        metadata: Optional[str] = None,
+    ):
+        """Update an ingress stream"""
+        lk = await self._get_api()
+        from livekit.protocol.ingress import UpdateIngressRequest
+        req = UpdateIngressRequest(
+            ingress_id=ingress_id,
+            name=name or "",
+            room_name=room_name or "",
+            participant_identity=participant_identity or "",
+            participant_name=participant_name or "",
+            participant_metadata=metadata or "",
+        )
+        return await lk.ingress.update_ingress(req)
+
+    async def delete_ingress(self, ingress_id: str):
+        """Delete an ingress stream"""
+        lk = await self._get_api()
+        from livekit.protocol.ingress import DeleteIngressRequest
+        req = DeleteIngressRequest(ingress_id=ingress_id)
+        return await lk.ingress.delete_ingress(req)
 
     # SIP Management (if enabled)
     async def list_sip_trunks(self):
@@ -1209,14 +1295,7 @@ class LiveKitClient:
         """Get comprehensive ingress analytics data"""
         try:
             print("DEBUG: Fetching ingress analytics...")
-            lk = await self._get_api()
-
-            # Get ingress list
-            from livekit.protocol.ingress import ListIngressRequest
-
-            req = ListIngressRequest()
-            resp = await lk.ingress.list_ingress(req)
-            ingress_list = list(resp.items) if hasattr(resp, "items") else []
+            ingress_list = await self.list_ingress()
 
             print(f"DEBUG: Found {len(ingress_list)} ingress items")
 

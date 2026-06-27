@@ -366,6 +366,28 @@ class TestInboundTrunkCRUD:
 # Dispatch rule CRUD
 # ---------------------------------------------------------------------------
 
+class TestInboundTrunkUpdate:
+    def test_update_inbound_trunk(self, sip_client):
+        c, mock_lk = sip_client
+        token = _csrf_token()
+        r = c.post(
+            "/sip-inbound/trunk/update",
+            headers=_auth_headers(),
+            data={
+                "csrf_token": token,
+                "sip_trunk_id": "ST_inbound_abc",
+                "trunk_name": "updated-inbound",
+                "numbers": "+15550001234,+15559998888",
+            },
+            follow_redirects=False,
+        )
+        assert r.status_code == status.HTTP_303_SEE_OTHER
+        assert "flash_type=success" in r.headers["location"]
+        mock_lk.update_sip_inbound_trunk.assert_awaited_once()
+        kw = mock_lk.update_sip_inbound_trunk.call_args.kwargs
+        assert kw["name"] == "updated-inbound"
+
+
 class TestDispatchRuleCRUD:
     def test_create_dispatch_rule(self, sip_client):
         c, mock_lk = sip_client
@@ -396,3 +418,22 @@ class TestDispatchRuleCRUD:
         )
         assert r.status_code == status.HTTP_303_SEE_OTHER
         assert "flash_type=success" in r.headers["location"]
+
+    def test_update_dispatch_rule(self, sip_client):
+        c, mock_lk = sip_client
+        token = _csrf_token()
+        r = c.post(
+            "/sip-inbound/rule/update",
+            headers=_auth_headers(),
+            data={
+                "csrf_token": token,
+                "sip_dispatch_rule_id": "SDR_abc123",
+                "rule_name": "updated-rule",
+                "dispatch_rule_type": "direct",
+                "room_name": "my-room",
+            },
+            follow_redirects=False,
+        )
+        assert r.status_code == status.HTTP_303_SEE_OTHER
+        assert "flash_type=success" in r.headers["location"]
+        assert mock_lk.update_sip_dispatch_rule.call_count == 1

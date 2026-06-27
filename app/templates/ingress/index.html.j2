@@ -1,0 +1,287 @@
+{% extends "base.html.j2" %}
+
+{% block title %}Ingress - LiveKit Dashboard{% endblock %}
+
+{% block page_title %}Ingress{% endblock %}
+
+{% block page_subtitle %}
+<p class="page-subtitle">Manage RTMP / WHIP / URL ingress streams</p>
+{% endblock %}
+
+{% block content %}
+{% if flash_message %}
+<div class="alert alert-{{ flash_type or 'info' }} alert-dismissible fade show mb-3" role="alert">
+    {{ flash_message }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+<!-- Stats -->
+<div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+    <div class="stat-card">
+        <div class="stat-label"><i class="bi bi-cast"></i> Total Streams</div>
+        <div class="stat-value info">{{ ingress_list | length }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label"><i class="bi bi-broadcast"></i> Active</div>
+        <div class="stat-value success">
+            {{ ingress_list | selectattr('state', 'defined') | list | length }}
+        </div>
+    </div>
+</div>
+
+<!-- Table -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0"><i class="bi bi-cast"></i> Ingress Streams</h5>
+        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createIngressModal">
+            <i class="bi bi-plus-circle"></i> Create Ingress
+        </button>
+    </div>
+    <div class="card-body p-0">
+        {% if ingress_list %}
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Ingress ID</th>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Room</th>
+                        <th>URL / Key</th>
+                        <th>State</th>
+                        <th style="text-align:right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in ingress_list %}
+                    <tr>
+                        <td><code style="font-size:.8rem;">{{ item.ingress_id[:20] }}…</code></td>
+                        <td><strong>{{ item.name or '—' }}</strong></td>
+                        <td>
+                            {% set itype = item.input_type | string %}
+                            {% if '0' in itype or 'RTMP' in itype %}
+                            <span class="badge bg-primary">RTMP</span>
+                            {% elif '1' in itype or 'WHIP' in itype %}
+                            <span class="badge bg-info text-dark">WHIP</span>
+                            {% elif '2' in itype or 'URL' in itype %}
+                            <span class="badge bg-secondary">URL</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ itype }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ item.room_name or '—' }}</td>
+                        <td>
+                            {% if item.url %}
+                            <div class="d-flex align-items-center gap-1">
+                                <code style="font-size:.75rem;word-break:break-all;">{{ item.url[:40] }}{% if item.url | length > 40 %}…{% endif %}</code>
+                                <button class="btn btn-link p-0 copy-btn" data-copy="{{ item.url }}" title="Copy URL">
+                                    <i class="bi bi-clipboard" style="font-size:.8rem;"></i>
+                                </button>
+                            </div>
+                            {% endif %}
+                            {% if item.stream_key %}
+                            <div class="d-flex align-items-center gap-1 mt-1">
+                                <code style="font-size:.75rem;">••••••{{ item.stream_key[-4:] if item.stream_key | length > 4 else '••••' }}</code>
+                                <button class="btn btn-link p-0 copy-btn" data-copy="{{ item.stream_key }}" title="Copy stream key">
+                                    <i class="bi bi-clipboard" style="font-size:.8rem;"></i>
+                                </button>
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% set s = item.state | string %}
+                            {% if 'ENDPOINT_PUBLISHED' in s or 'PUBLISHING' in s %}
+                            <span class="badge bg-success">Active</span>
+                            {% elif 'ENDPOINT_WAITING' in s or 'BUFFERING' in s %}
+                            <span class="badge bg-warning text-dark">Waiting</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Idle</span>
+                            {% endif %}
+                        </td>
+                        <td style="text-align:right;">
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-sm btn-secondary edit-ingress-btn"
+                                    data-ingress-id="{{ item.ingress_id }}"
+                                    data-ingress-name="{{ item.name or '' }}"
+                                    data-ingress-room="{{ item.room_name or '' }}"
+                                    data-ingress-identity="{{ item.participant_identity or '' }}"
+                                    data-ingress-participant-name="{{ item.participant_name or '' }}"
+                                    data-ingress-metadata="{{ item.participant_metadata or '' }}"
+                                    data-bs-toggle="modal" data-bs-target="#editIngressModal"
+                                    title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-danger delete-ingress-btn"
+                                    data-ingress-id="{{ item.ingress_id }}"
+                                    data-ingress-name="{{ item.name or item.ingress_id }}"
+                                    data-bs-toggle="modal" data-bs-target="#deleteIngressModal"
+                                    title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state py-5">
+            <div class="empty-state-icon"><i class="bi bi-cast"></i></div>
+            <div class="empty-state-title">No ingress streams</div>
+            <div class="empty-state-description">Create an RTMP, WHIP, or URL ingress to start streaming into a LiveKit room.</div>
+            <button type="button" class="btn btn-primary mt-3" data-bs-toggle="modal" data-bs-target="#createIngressModal">
+                <i class="bi bi-plus-circle"></i> Create Ingress
+            </button>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Create Modal -->
+<div class="modal fade" id="createIngressModal" tabindex="-1" aria-labelledby="createIngressModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="/ingress/create">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="createIngressModalLabel">Create Ingress</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label">Type <span class="text-danger">*</span></label>
+                        <select class="form-select" name="ingress_type" required>
+                            <option value="rtmp" selected>RTMP</option>
+                            <option value="whip">WHIP</option>
+                            <option value="url">URL Pull</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="name" required placeholder="my-stream">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Room Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="room_name" required placeholder="my-room">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Participant Identity</label>
+                        <input type="text" class="form-control" name="participant_identity" placeholder="streamer">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Participant Display Name</label>
+                        <input type="text" class="form-control" name="participant_name" placeholder="My Stream">
+                    </div>
+                    <div class="form-group mb-0">
+                        <label class="form-label">Metadata</label>
+                        <textarea class="form-control" name="metadata" rows="2" placeholder='{"key":"value"}'></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-plus-circle"></i> Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal fade" id="editIngressModal" tabindex="-1" aria-labelledby="editIngressModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="/ingress/update">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="ingress_id" id="edit_ingress_id">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editIngressModalLabel">Edit Ingress</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label">Name</label>
+                        <input type="text" class="form-control" name="name" id="edit_ingress_name">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Room Name</label>
+                        <input type="text" class="form-control" name="room_name" id="edit_ingress_room">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Participant Identity</label>
+                        <input type="text" class="form-control" name="participant_identity" id="edit_ingress_identity">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Participant Display Name</label>
+                        <input type="text" class="form-control" name="participant_name" id="edit_ingress_participant_name">
+                    </div>
+                    <div class="form-group mb-0">
+                        <label class="form-label">Metadata</label>
+                        <textarea class="form-control" name="metadata" id="edit_ingress_metadata" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Modal -->
+<div class="modal fade" id="deleteIngressModal" tabindex="-1" aria-labelledby="deleteIngressModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <form method="post" action="/ingress/delete">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="ingress_id" id="delete_ingress_id">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteIngressModalLabel">Delete Ingress</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Delete ingress <strong id="delete_ingress_name"></strong>? This cannot be undone.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger"><i class="bi bi-trash"></i> Delete</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.querySelectorAll('.edit-ingress-btn').forEach(btn => {
+    btn.addEventListener('click', function () {
+        document.getElementById('edit_ingress_id').value = this.dataset.ingressId;
+        document.getElementById('edit_ingress_name').value = this.dataset.ingressName;
+        document.getElementById('edit_ingress_room').value = this.dataset.ingressRoom;
+        document.getElementById('edit_ingress_identity').value = this.dataset.ingressIdentity;
+        document.getElementById('edit_ingress_participant_name').value = this.dataset.ingressParticipantName;
+        document.getElementById('edit_ingress_metadata').value = this.dataset.ingressMetadata;
+    });
+});
+
+document.querySelectorAll('.delete-ingress-btn').forEach(btn => {
+    btn.addEventListener('click', function () {
+        document.getElementById('delete_ingress_id').value = this.dataset.ingressId;
+        document.getElementById('delete_ingress_name').textContent = this.dataset.ingressName;
+    });
+});
+
+document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', function () {
+        navigator.clipboard.writeText(this.dataset.copy).then(() => {
+            const icon = this.querySelector('i');
+            icon.className = 'bi bi-clipboard-check';
+            setTimeout(() => { icon.className = 'bi bi-clipboard'; }, 1500);
+        });
+    });
+});
+</script>
+{% endblock %}

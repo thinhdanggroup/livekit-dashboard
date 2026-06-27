@@ -142,6 +142,23 @@ async def room_detail(
     )
 
 
+@router.post("/rooms/{room_name}/update", dependencies=[Depends(requires_admin)])
+async def update_room(
+    request: Request,
+    room_name: str,
+    csrf_token: str = Form(...),
+    metadata: str = Form(""),
+    lk: LiveKitClient = Depends(get_livekit_client),
+):
+    """Update a room's metadata"""
+    await verify_csrf_token(request)
+    try:
+        await lk.update_room_metadata(room_name, metadata)
+    except Exception as e:
+        print(f"Error updating room: {e}")
+    return RedirectResponse(url=f"/rooms/{room_name}", status_code=303)
+
+
 @router.post("/rooms/{room_name}/delete", dependencies=[Depends(requires_admin)])
 async def delete_room(
     request: Request,
@@ -263,8 +280,29 @@ async def mute_participant(
     return RedirectResponse(url=f"/rooms/{room_name}", status_code=303)
 
 
+@router.post(
+    "/rooms/{room_name}/participants/{identity}/update",
+    dependencies=[Depends(requires_admin)],
+)
+async def update_participant(
+    request: Request,
+    room_name: str,
+    identity: str,
+    csrf_token: str = Form(...),
+    metadata: str = Form(""),
+    lk: LiveKitClient = Depends(get_livekit_client),
+):
+    """Update a participant's metadata"""
+    await verify_csrf_token(request)
+    try:
+        await lk.update_participant(room_name, identity, metadata=metadata)
+    except Exception as e:
+        print(f"Error updating participant: {e}")
+    return RedirectResponse(url=f"/rooms/{room_name}", status_code=303)
+
+
 @router.get(
-    "/rooms/{room_name}/rtc-stats", 
+    "/rooms/{room_name}/rtc-stats",
     dependencies=[Depends(requires_admin)]
 )
 async def get_room_rtc_stats(
