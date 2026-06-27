@@ -66,3 +66,6 @@ SSH_SETUP_GUIDE.md
 
 step_histories/*
 CLAUDE.md
+
+# Playwright MCP session screenshots/snapshots
+.playwright-mcp/

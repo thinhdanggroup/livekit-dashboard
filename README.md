@@ -86,8 +86,8 @@ A **stateless**, self-hosted, server-side rendered (SSR) dashboard for managing 
 
 ### Prerequisites
 
-- Python 3.10 or higher
-- A running LiveKit server instance
+- Python 3.11 or higher
+- A running LiveKit server instance (or a LiveKit Cloud project)
 - LiveKit API key and secret
 
 ### Option 1: Using Poetry (Recommended)
@@ -118,7 +118,7 @@ git clone <repository-url>
 cd livekit-dashboard
 
 # Create .env file
-cp .env.example .env
+make env-example
 
 # Edit .env with your credentials
 nano .env
@@ -157,7 +157,9 @@ All configuration is done via environment variables. Create a `.env` file:
 
 ```bash
 # LiveKit Server Configuration
-LIVEKIT_URL=https://your-livekit-server.com
+# Self-hosted:  http://localhost:7880  (or https:// in production)
+# LiveKit Cloud: wss://your-project.livekit.cloud
+LIVEKIT_URL=wss://your-project.livekit.cloud
 LIVEKIT_API_KEY=your-api-key
 LIVEKIT_API_SECRET=your-api-secret
 
@@ -179,7 +181,7 @@ ENABLE_SIP=false
 
 | Variable             | Required | Default    | Description                                                       |
 | -------------------- | -------- | ---------- | ----------------------------------------------------------------- |
-| `LIVEKIT_URL`        | ✅        | -          | LiveKit server URL (e.g., `https://your-server.com`)              |
+| `LIVEKIT_URL`        | ✅        | -          | LiveKit server URL — self-hosted: `http://localhost:7880`; LiveKit Cloud: `wss://your-project.livekit.cloud` |
 | `LIVEKIT_API_KEY`    | ✅        | -          | LiveKit API key                                                   |
 | `LIVEKIT_API_SECRET` | ✅        | -          | LiveKit API secret                                                |
 | `ADMIN_USERNAME`     | ✅        | `admin`    | Dashboard admin username                                          |
@@ -341,6 +343,11 @@ livekit-dashboard/
 │   └── static/                 # Static assets
 │       ├── css/                # Stylesheets
 │       └── js/                 # JavaScript
+├── tests/                      # Test suite (mocked, no real LiveKit needed)
+│   ├── conftest.py             # Fixtures and test env vars
+│   ├── test_main.py            # Core route tests
+│   ├── test_security.py        # Auth and CSRF tests
+│   └── test_sip.py             # SIP CRUD + JSON editor tests
 ├── Dockerfile                  # Docker image definition
 ├── docker-compose.yml          # Docker Compose configuration
 ├── pyproject.toml              # Python dependencies
@@ -432,9 +439,14 @@ docker-compose down
 
 ## 🧪 Testing
 
+The test suite uses mocked LiveKit clients — no real LiveKit server or credentials are required.
+
 ```bash
 # Run all tests
 make test
+
+# Or directly with pytest
+python -m pytest tests/
 
 # Run with coverage
 make test-cov
