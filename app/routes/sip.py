@@ -1,6 +1,7 @@
 """SIP telephony routes"""
 
 import json
+import os
 from fastapi import APIRouter, Depends, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from typing import Optional, Dict, Any
@@ -95,6 +96,29 @@ async def create_sip_trunk(
         return RedirectResponse(url="/", status_code=303)
 
     try:
+        # If JSON editor was used, extract fields from it
+        if json_data and json_data.strip():
+            try:
+                jd = json.loads(json_data)
+                trunk_name = jd.get("name", trunk_name)
+                address = jd.get("address", address)
+                transport = jd.get("transport", transport)
+                raw_numbers = jd.get("numbers", None)
+                if raw_numbers is not None:
+                    numbers = ",".join(raw_numbers) if isinstance(raw_numbers, list) else raw_numbers
+                username = jd.get("auth_username", username)
+                password = jd.get("auth_password", password)
+                destination_country = jd.get("destination_country", destination_country)
+                metadata = jd.get("metadata", metadata)
+                h = jd.get("headers", None)
+                if h is not None:
+                    headers = json.dumps(h)
+                h2a = jd.get("headers_to_attributes", None)
+                if h2a is not None:
+                    headers_to_attributes = json.dumps(h2a)
+            except json.JSONDecodeError:
+                pass
+
         # Parse numbers if provided
         numbers_list = None
         if numbers:
@@ -173,6 +197,29 @@ async def update_sip_trunk(
         return RedirectResponse(url="/", status_code=303)
 
     try:
+        # If JSON editor was used, extract fields from it
+        if json_data and json_data.strip():
+            try:
+                jd = json.loads(json_data)
+                trunk_name = jd.get("name", trunk_name)
+                address = jd.get("address", address)
+                transport = jd.get("transport", transport)
+                raw_numbers = jd.get("numbers", None)
+                if raw_numbers is not None:
+                    numbers = ",".join(raw_numbers) if isinstance(raw_numbers, list) else raw_numbers
+                username = jd.get("auth_username", username)
+                password = jd.get("auth_password", password)
+                destination_country = jd.get("destination_country", destination_country)
+                metadata = jd.get("metadata", metadata)
+                h = jd.get("headers", None)
+                if h is not None:
+                    headers = json.dumps(h)
+                h2a = jd.get("headers_to_attributes", None)
+                if h2a is not None:
+                    headers_to_attributes = json.dumps(h2a)
+            except json.JSONDecodeError:
+                pass
+
         # Parse numbers if provided
         numbers_list = None
         if numbers:
@@ -576,7 +623,9 @@ async def create_dispatch_rule(
         traceback.print_exc()
 
         # Error message - make it more user-friendly
-        if "missing rule" in error_msg.lower():
+        if "cannot connect" in error_msg.lower() or "connectionkey" in error_msg.lower() or "connect call failed" in error_msg.lower():
+            error_msg = f"Cannot connect to LiveKit server at {os.environ.get('LIVEKIT_URL', 'unknown')}"
+        elif "missing rule" in error_msg.lower():
             error_msg = "Invalid dispatch rule configuration. Please check your settings."
         elif "invalid_argument" in error_msg.lower():
             error_msg = "Invalid configuration. Please verify all required fields are filled."

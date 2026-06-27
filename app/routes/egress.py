@@ -20,7 +20,10 @@ async def egress_index(
     lk: LiveKitClient = Depends(get_livekit_client),
 ):
     """List all egress jobs"""
-    egress_jobs = await lk.list_egress(active=True)
+    try:
+        egress_jobs = await lk.list_egress(active=True)
+    except Exception:
+        egress_jobs = []
     current_user = get_current_user(request)
 
     template_data = {

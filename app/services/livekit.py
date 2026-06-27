@@ -2,6 +2,7 @@
 
 import asyncio
 import base64
+import datetime
 import json
 import os
 import time
@@ -199,7 +200,7 @@ class LiveKitClient:
             .with_name(name or identity)
             .with_metadata(metadata)
             .with_grants(grant)
-            .with_ttl(ttl)
+            .with_ttl(datetime.timedelta(seconds=ttl))
         )
 
         return token.to_jwt()

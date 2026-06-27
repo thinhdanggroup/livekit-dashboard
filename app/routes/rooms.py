@@ -20,7 +20,10 @@ async def rooms_index(
     lk: LiveKitClient = Depends(get_livekit_client),
 ):
     """List all rooms with optional search"""
-    rooms, latency = await lk.list_rooms()
+    try:
+        rooms, latency = await lk.list_rooms()
+    except Exception:
+        rooms, latency = [], 0.0
     latency_ms = round(latency * 1000, 2)
 
     # Filter by search if provided

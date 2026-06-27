@@ -76,14 +76,18 @@
                         </td>
                         <td>
                             <div class="btn-group btn-group-sm" role="group">
-                                <button type="button" class="btn btn-outline-primary btn-sm edit-trunk-btn" 
+                                <button type="button" class="btn btn-outline-primary btn-sm edit-trunk-btn"
                                         data-trunk-id="{{ trunk.sip_trunk_id }}"
                                         data-trunk-name="{{ trunk.name or '' }}"
                                         data-trunk-address="{{ trunk.address or trunk.outbound_address or '' }}"
                                         data-trunk-transport="{% if trunk.transport %}{{ trunk.transport|string|lower }}{% else %}tcp{% endif %}"
                                         data-trunk-numbers="{{ trunk.numbers|join(',') if trunk.numbers else '' }}"
                                         data-trunk-auth-username="{{ trunk.auth_username or '' }}"
-                                        data-bs-toggle="modal" 
+                                        data-trunk-destination-country="{{ trunk.destination_country or '' }}"
+                                        data-trunk-metadata="{{ trunk.metadata or '' }}"
+                                        data-trunk-headers="{{ trunk.headers | tojson if trunk.headers else '' }}"
+                                        data-trunk-headers-to-attributes="{{ trunk.headers_to_attributes | tojson if trunk.headers_to_attributes else '' }}"
+                                        data-bs-toggle="modal"
                                         data-bs-target="#updateTrunkModal"
                                         title="Edit trunk">
                                     <i class="bi bi-pencil"></i>
@@ -967,7 +971,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 let trunkTransport = this.getAttribute('data-trunk-transport');
                 const trunkNumbers = this.getAttribute('data-trunk-numbers');
                 const trunkAuthUsername = this.getAttribute('data-trunk-auth-username');
-                
+                const trunkDestinationCountry = this.getAttribute('data-trunk-destination-country');
+                const trunkMetadata = this.getAttribute('data-trunk-metadata');
+                const trunkHeaders = this.getAttribute('data-trunk-headers');
+                const trunkHeadersToAttributes = this.getAttribute('data-trunk-headers-to-attributes');
+
                 // Normalize transport value (handle enum values like SIP_TRANSPORT_TCP)
                 if (trunkTransport) {
                     trunkTransport = trunkTransport.toLowerCase()
@@ -976,21 +984,31 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     trunkTransport = 'tcp';
                 }
-                
-                console.log('Populating update form with:', {
-                    trunkId, trunkName, trunkAddress, trunkTransport, trunkNumbers, trunkAuthUsername
-                });
-                
-                // Populate form fields
+
+                // Populate core fields
                 document.getElementById('update_sip_trunk_id').value = trunkId || '';
                 document.getElementById('update_trunk_name').value = trunkName || '';
                 document.getElementById('update_address').value = trunkAddress || '';
                 document.getElementById('update_transport').value = trunkTransport;
                 document.getElementById('update_numbers').value = trunkNumbers || '';
                 document.getElementById('update_username').value = trunkAuthUsername || '';
-                
-                // Clear password field
                 document.getElementById('update_password').value = '';
+
+                // Populate optional fields
+                document.getElementById('update_destination_country').value = trunkDestinationCountry || '';
+                document.getElementById('update_metadata').value = trunkMetadata || '';
+                try {
+                    const h = trunkHeaders ? JSON.parse(trunkHeaders) : {};
+                    document.getElementById('update_headers').value = Object.keys(h).length ? JSON.stringify(h, null, 2) : '';
+                } catch(e) {
+                    document.getElementById('update_headers').value = trunkHeaders || '';
+                }
+                try {
+                    const h2a = trunkHeadersToAttributes ? JSON.parse(trunkHeadersToAttributes) : {};
+                    document.getElementById('update_headers_to_attributes').value = Object.keys(h2a).length ? JSON.stringify(h2a, null, 2) : '';
+                } catch(e) {
+                    document.getElementById('update_headers_to_attributes').value = trunkHeadersToAttributes || '';
+                }
             });
         });
         
