@@ -34,7 +34,7 @@ async def settings_index(
         "debug": os.environ.get("DEBUG", "false").lower() == "true",
     }
 
-    return request.app.state.templates.TemplateResponse(
+    return request.app.state.templates.TemplateResponse(request, 
         "settings.html.j2",
         {
             "request": request,

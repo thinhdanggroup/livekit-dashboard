@@ -95,7 +95,7 @@ async def agents_index(
     total_sessions = sum(s["running_jobs"] for s in summaries)
 
     flash_message, flash_type = get_flash(request)
-    return request.app.state.templates.TemplateResponse(
+    return request.app.state.templates.TemplateResponse(request, 
         "agents/index.html.j2",
         {
             "request": request,
@@ -151,7 +151,7 @@ async def agent_detail(
 
     agent_id = dispatches[0]["id"] if dispatches else None
 
-    return request.app.state.templates.TemplateResponse(
+    return request.app.state.templates.TemplateResponse(request, 
         "agents/detail.html.j2",
         {
             "request": request,

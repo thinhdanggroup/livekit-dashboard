@@ -62,6 +62,14 @@ app.add_middleware(
     secret_key=os.environ.get("APP_SECRET_KEY", "dev-secret-key-change-in-production"),
 )
 
+
+@app.middleware("http")
+async def ensure_csrf_token(request: Request, call_next):
+    """Ensure every request has a CSRF token available for templates."""
+    get_csrf_token(request)
+    return await call_next(request)
+
+
 # Add CORS middleware (restrictive by default)
 app.add_middleware(
     CORSMiddleware,
@@ -75,13 +83,10 @@ app.add_middleware(
 templates = Jinja2Templates(directory="app/templates")
 
 
-# Add custom template functions
-def csrf_token_function(request: Request) -> str:
-    """Template function to get CSRF token"""
-    return get_csrf_token(request)
+# Add custom template globals
+CSS_VERSION = "0.1.0"
 
-
-templates.env.globals["csrf_token"] = csrf_token_function
+templates.env.globals["css_version"] = CSS_VERSION
 templates.env.globals["homer_enabled"] = lambda: os.environ.get("ENABLE_HOMER", "false").lower() == "true"
 
 
@@ -166,7 +171,7 @@ async def add_security_headers(request: Request, call_next):
 @app.exception_handler(404)
 async def not_found_handler(request: Request, exc):
     """Custom 404 page"""
-    return templates.TemplateResponse(
+    return templates.TemplateResponse(request, 
         "base.html.j2",
         {
             "request": request,
@@ -179,7 +184,7 @@ async def not_found_handler(request: Request, exc):
 @app.exception_handler(500)
 async def server_error_handler(request: Request, exc):
     """Custom 500 page"""
-    return templates.TemplateResponse(
+    return templates.TemplateResponse(request, 
         "base.html.j2",
         {
             "request": request,

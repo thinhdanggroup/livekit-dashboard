@@ -5,7 +5,6 @@ from fastapi.responses import HTMLResponse
 
 from app.services.livekit import LiveKitClient, get_livekit_client
 from app.security.basic_auth import requires_admin, get_current_user
-from app.security.csrf import get_csrf_token
 
 
 router = APIRouter()
@@ -130,20 +129,11 @@ async def get_real_analytics_data(lk: LiveKitClient):
                 total_connection_minutes += 10  # Assume 10 minutes average
         
         # Calculate connection success rate (100% if participants are in the list)
-        connection_success = round((successful_connections / total_connections * 100), 1) if total_connections > 0 else 100
-        
+        connection_success = round((successful_connections / total_connections * 100), 1) if total_connections > 0 else 0
+
         # Round connection minutes
         total_connection_minutes = round(total_connection_minutes, 0)
-        
-        # Ensure we have at least some demo data if no participants
-        if total_connections == 0:
-            # Provide sample data for demonstration when no active participants
-            platforms = {"Web": 5, "iOS": 3, "Android": 2}
-            connection_types = {"WebRTC": 8, "TURN Relay": 2}
-            connection_success = 96.5
-            total_connection_minutes = 145
-            print("DEBUG: No active participants, using sample data for demonstration")
-        
+
         result = {
             "connection_success": connection_success,
             "connection_minutes": int(total_connection_minutes),
@@ -200,7 +190,7 @@ async def overview(
     # Get current user
     current_user = get_current_user(request)
 
-    return request.app.state.templates.TemplateResponse(
+    return request.app.state.templates.TemplateResponse(request, 
         "index.html.j2",
         {
             "request": request,
@@ -213,6 +203,5 @@ async def overview(
             "last_updated": "6 min",
             "current_user": current_user,
             "sip_enabled": lk.sip_enabled,
-            "csrf_token": get_csrf_token(request),
         },
     )

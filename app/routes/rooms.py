@@ -44,12 +44,12 @@ async def rooms_index(
 
     # Return partial template for HTMX polling
     if partial:
-        return request.app.state.templates.TemplateResponse(
+        return request.app.state.templates.TemplateResponse(request, 
             "rooms/index.html.j2",
             template_data,
         )
 
-    return request.app.state.templates.TemplateResponse(
+    return request.app.state.templates.TemplateResponse(request, 
         "rooms/index.html.j2",
         template_data,
     )
@@ -83,7 +83,7 @@ async def create_room(
             latency_ms = round(latency * 1000, 2)
             current_user = get_current_user(request)
             
-            return request.app.state.templates.TemplateResponse(
+            return request.app.state.templates.TemplateResponse(request, 
                 "rooms/_rooms_table.html.j2",
                 {
                     "request": request,
@@ -131,12 +131,12 @@ async def room_detail(
 
     # Return partial for HTMX polling
     if partial:
-        return request.app.state.templates.TemplateResponse(
+        return request.app.state.templates.TemplateResponse(request, 
             "rooms/detail.html.j2",
             template_data,
         )
 
-    return request.app.state.templates.TemplateResponse(
+    return request.app.state.templates.TemplateResponse(request, 
         "rooms/detail.html.j2",
         template_data,
     )
@@ -182,7 +182,7 @@ async def delete_room(
         current_user = get_current_user(request)
         
         # Return just the rooms table HTML
-        return request.app.state.templates.TemplateResponse(
+        return request.app.state.templates.TemplateResponse(request, 
             "rooms/_rooms_table.html.j2",
             {
                 "request": request,

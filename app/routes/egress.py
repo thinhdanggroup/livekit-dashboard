@@ -36,12 +36,12 @@ async def egress_index(
 
     # Return partial for HTMX polling
     if partial:
-        return request.app.state.templates.TemplateResponse(
+        return request.app.state.templates.TemplateResponse(request, 
             "egress/index.html.j2",
             template_data,
         )
 
-    return request.app.state.templates.TemplateResponse(
+    return request.app.state.templates.TemplateResponse(request, 
         "egress/index.html.j2",
         template_data,
     )

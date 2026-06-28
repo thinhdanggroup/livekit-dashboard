@@ -17,11 +17,11 @@
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="/static/css/style.css?v={{ range(1000, 9999) | random }}">
+    <link rel="stylesheet" href="/static/css/style.css?v={{ css_version }}">
     
     <!-- HTMX CSRF Token Configuration -->
-    <meta name="csrf-token" content="{{ csrf_token }}">
-    
+    <meta name="csrf-token" content="{{ request.state.csrf_token }}">
+
     {% block extra_head %}{% endblock %}
 </head>
 <body data-bs-theme="dark">

@@ -29,7 +29,7 @@ async def sip_outbound_index(
     trunks = await lk.list_sip_trunks()
     current_user = get_current_user(request)
 
-    return request.app.state.templates.TemplateResponse(
+    return request.app.state.templates.TemplateResponse(request, 
         "sip/outbound.html.j2",
         {
             "request": request,
@@ -335,7 +335,7 @@ async def sip_inbound_index(
     trunks = await lk.list_sip_inbound_trunks()
     current_user = get_current_user(request)
 
-    return request.app.state.templates.TemplateResponse(
+    return request.app.state.templates.TemplateResponse(request, 
         "sip/inbound.html.j2",
         {
             "request": request,

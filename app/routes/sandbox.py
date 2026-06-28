@@ -21,7 +21,7 @@ async def sandbox_index(
     """Display token generator sandbox"""
     current_user = get_current_user(request)
 
-    return request.app.state.templates.TemplateResponse(
+    return request.app.state.templates.TemplateResponse(request, 
         "sandbox.html.j2",
         {
             "request": request,
@@ -88,7 +88,7 @@ async def generate_sandbox_token(
         "can_publish_data": (can_publish_data == "on"),
     }
 
-    return request.app.state.templates.TemplateResponse(
+    return request.app.state.templates.TemplateResponse(request, 
         "sandbox.html.j2",
         {
             "request": request,

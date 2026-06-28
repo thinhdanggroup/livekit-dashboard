@@ -499,7 +499,7 @@ async def homer_index(
         except Exception as exc:
             error = str(exc)
 
-    return request.app.state.templates.TemplateResponse(
+    return request.app.state.templates.TemplateResponse(request, 
         "homer/index.html.j2",
         {
             "request": request,
@@ -548,7 +548,7 @@ async def homer_call_detail(
     except Exception as exc:
         error = str(exc)
 
-    return request.app.state.templates.TemplateResponse(
+    return request.app.state.templates.TemplateResponse(request, 
         "homer/call.html.j2",
         {
             "request": request,

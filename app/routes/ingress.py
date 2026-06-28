@@ -28,7 +28,7 @@ async def ingress_index(
         ingress_list = []
     current_user = get_current_user(request)
 
-    return request.app.state.templates.TemplateResponse(
+    return request.app.state.templates.TemplateResponse(request, 
         "ingress/index.html.j2",
         {
             "request": request,
