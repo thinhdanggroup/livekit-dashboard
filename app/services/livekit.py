@@ -144,8 +144,19 @@ class LiveKitClient:
                 if isinstance(participants, Exception):
                     continue
                 for p in participants:
-                    p._room_name = room.name
-                all_participants.extend(participants)
+                    # Protobuf objects forbid arbitrary attribute assignment;
+                    # tag _room_name via __dict__ on the instance if possible,
+                    # otherwise fall back to a simple proxy wrapper.
+                    try:
+                        object.__setattr__(p, "_room_name", room.name)
+                    except (AttributeError, TypeError):
+                        class _ParticipantView:
+                            def __getattr__(self, name):
+                                return getattr(p, name)
+                        pv = _ParticipantView()
+                        pv._room_name = room.name
+                        p = pv
+                    all_participants.append(p)
             return all_participants
         except Exception:
             return []

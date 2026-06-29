@@ -45,10 +45,16 @@ async def rooms_index(
     all_annotations = annotations.get_all_annotations()
 
     def _annotate(room):
-        room._pinned = room.name in pinned_names
-        room._tags = all_annotations.get("tags", {}).get(room.name, [])
-        room._note = all_annotations.get("notes", {}).get(room.name, "")
-        return room
+        # Protobuf objects forbid arbitrary attribute assignment, so we wrap
+        # each room in a simple namespace that proxies the proto fields.
+        class _RoomView:
+            def __getattr__(self, name):
+                return getattr(room, name)
+        v = _RoomView()
+        v._pinned = room.name in pinned_names
+        v._tags = all_annotations.get("tags", {}).get(room.name, [])
+        v._note = all_annotations.get("notes", {}).get(room.name, "")
+        return v
 
     rooms = [_annotate(r) for r in rooms]
     pinned_rooms = [r for r in rooms if r._pinned]
