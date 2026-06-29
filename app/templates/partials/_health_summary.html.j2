@@ -2,7 +2,7 @@
   Health summary bar — top-of-page live status strip.
   Parameters:
     health_stats  (DashboardStats)  — from gather_dashboard_stats()
-    sip_enabled   (bool)            — whether SIP is configured
+    sip_enabled   (global callable)  — whether SIP is configured
 #}
 {% if health_stats.error %}
 <div class="alert alert-danger d-flex align-items-center gap-2 mb-3" role="alert">
@@ -40,7 +40,7 @@
         <div class="stat-change">live streams</div>
     </div>
 
-    {% if sip_enabled %}
+    {% if sip_enabled() %}
     <div class="stat-card">
         <div class="stat-label">SIP Trunks</div>
         <div class="stat-value {% if health_stats.sip_trunks > 0 %}success{% endif %}">

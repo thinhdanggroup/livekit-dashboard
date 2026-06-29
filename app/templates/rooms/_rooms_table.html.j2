@@ -18,9 +18,18 @@
                     {% for room in rooms %}
                     <tr>
                         <td>
-                            <strong style="color: var(--text-primary);">{{ room.name }}</strong>
-                            {% if room.metadata %}
-                            <br><small class="text-muted">{{ room.metadata[:50] }}</small>
+                            <div class="d-flex align-items-center gap-1 flex-wrap">
+                                <strong style="color: var(--text-primary);">{{ room.name }}</strong>
+                                {% if room._tags is defined %}
+                                {% for tag in room._tags %}
+                                <span class="badge badge-secondary" style="font-size:.7rem;">{{ tag }}</span>
+                                {% endfor %}
+                                {% endif %}
+                            </div>
+                            {% if room._note is defined and room._note %}
+                            <small class="text-muted">{{ room._note[:60] }}</small>
+                            {% elif room.metadata %}
+                            <small class="text-muted">{{ room.metadata[:50] }}</small>
                             {% endif %}
                         </td>
                         <td>
@@ -33,16 +42,26 @@
                         <td>{{ room.empty_timeout }}s</td>
                         <td style="text-align: right;">
                             <div class="btn-group">
-                                <a href="/rooms/{{ room.name }}" class="btn btn-sm btn-secondary">
+                                <a href="/rooms/{{ room.name }}" class="btn btn-sm btn-secondary" title="View">
                                     <i class="bi bi-eye"></i>
                                 </a>
-                                <button type="button" class="btn btn-sm btn-danger" 
-                                        hx-post="/rooms/{{ room.name }}/delete" 
-                                        hx-target="#rooms-list" 
+                                {% if not is_readonly() %}
+                                <button type="button" class="btn btn-sm btn-secondary edit-room-btn"
+                                    data-room-name="{{ room.name }}"
+                                    data-room-metadata="{{ room.metadata or '' }}"
+                                    data-bs-toggle="modal" data-bs-target="#editRoomModal"
+                                    title="Edit metadata">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-danger"
+                                        hx-post="/rooms/{{ room.name }}/delete"
+                                        hx-target="#rooms-list"
                                         hx-swap="outerHTML"
-                                        hx-confirm="Are you sure you want to close room '{{ room.name }}'?">
+                                        hx-confirm="Are you sure you want to close room '{{ room.name }}'?"
+                                        title="Close room">
                                     <i class="bi bi-trash"></i>
                                 </button>
+                                {% endif %}
                             </div>
                         </td>
                     </tr>
@@ -72,4 +91,3 @@
         {% endif %}
     </div>
 </div>
-

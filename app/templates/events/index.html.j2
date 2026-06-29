@@ -1,0 +1,131 @@
+{% extends "base.html.j2" %}
+
+{% block title %}Live Events — LiveKit Dashboard{% endblock %}
+{% block page_title %}Live Event Stream{% endblock %}
+{% block page_subtitle %}
+<p class="text-muted mb-0">Real-time room and participant events via Server-Sent Events</p>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+
+  <div class="d-flex align-items-center gap-3 mb-4">
+    <span id="sse-status" class="badge bg-secondary">
+      <i class="bi bi-circle-fill me-1" style="font-size:.5rem;"></i> Connecting…
+    </span>
+    <button class="btn btn-sm btn-outline-secondary" id="btn-clear">
+      <i class="bi bi-trash"></i> Clear
+    </button>
+    <button class="btn btn-sm btn-outline-primary" id="btn-pause">
+      <i class="bi bi-pause-circle"></i> Pause
+    </button>
+  </div>
+
+  <div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h6 class="mb-0"><i class="bi bi-broadcast me-2"></i>Event log</h6>
+      <small class="text-muted" id="event-count">0 events</small>
+    </div>
+    <div id="event-log" class="list-group list-group-flush"
+         style="max-height:65vh; overflow-y:auto; font-family:monospace; font-size:.85rem;">
+      <div class="list-group-item text-muted text-center py-4" id="empty-notice">
+        Waiting for events…
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  const log = document.getElementById('event-log');
+  const status = document.getElementById('sse-status');
+  const counter = document.getElementById('event-count');
+  const btnClear = document.getElementById('btn-clear');
+  const btnPause = document.getElementById('btn-pause');
+  const empty = document.getElementById('empty-notice');
+
+  let count = 0;
+  let paused = false;
+  let es;
+
+  const ICONS = {
+    'room.created':      ['bi-door-open', 'success'],
+    'room.closed':       ['bi-door-closed', 'secondary'],
+    'participant.joined':['bi-person-fill-add', 'primary'],
+    'participant.left':  ['bi-person-fill-dash', 'warning'],
+    'error':             ['bi-exclamation-triangle-fill', 'danger'],
+  };
+
+  function setStatus(text, cls) {
+    status.className = 'badge bg-' + cls;
+    status.innerHTML = '<i class="bi bi-circle-fill me-1" style="font-size:.5rem;"></i> ' + text;
+  }
+
+  function addEntry(type, data) {
+    if (paused) return;
+    empty.style.display = 'none';
+    count++;
+    counter.textContent = count + ' event' + (count !== 1 ? 's' : '');
+
+    const [icon, color] = ICONS[type] || ['bi-info-circle', 'secondary'];
+    const ts = data.ts || new Date().toISOString().slice(0, 19) + 'Z';
+
+    const item = document.createElement('div');
+    item.className = 'list-group-item list-group-item-action py-2 px-3';
+    item.innerHTML =
+      '<span class="me-2 text-' + color + '"><i class="bi ' + icon + '"></i></span>' +
+      '<strong class="me-2">' + type + '</strong>' +
+      (data.room ? '<span class="me-2">' + escHtml(data.room) + '</span>' : '') +
+      (data.identity ? '<span class="badge bg-light text-dark me-2">' + escHtml(data.identity) + '</span>' : '') +
+      (data.message ? '<span class="text-danger">' + escHtml(data.message) + '</span>' : '') +
+      '<small class="ms-auto text-muted float-end">' + ts + '</small>';
+
+    log.insertBefore(item, log.firstChild.nextSibling || null);
+
+    // Keep at most 200 entries
+    while (log.children.length > 201) log.removeChild(log.lastChild);
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function connect() {
+    if (es) es.close();
+    setStatus('Connecting…', 'secondary');
+    es = new EventSource('/events/stream');
+
+    es.onopen = () => setStatus('Connected', 'success');
+    es.onerror = () => {
+      setStatus('Reconnecting…', 'warning');
+      setTimeout(connect, 5000);
+    };
+
+    ['room.created','room.closed','participant.joined','participant.left','error'].forEach(type => {
+      es.addEventListener(type, e => {
+        try { addEntry(type, JSON.parse(e.data)); } catch {}
+      });
+    });
+  }
+
+  btnClear.addEventListener('click', () => {
+    count = 0;
+    counter.textContent = '0 events';
+    while (log.firstChild) log.removeChild(log.firstChild);
+    log.appendChild(empty);
+    empty.style.display = '';
+  });
+
+  btnPause.addEventListener('click', () => {
+    paused = !paused;
+    btnPause.innerHTML = paused
+      ? '<i class="bi bi-play-circle"></i> Resume'
+      : '<i class="bi bi-pause-circle"></i> Pause';
+    btnPause.className = 'btn btn-sm ' + (paused ? 'btn-primary' : 'btn-outline-primary');
+  });
+
+  connect();
+})();
+</script>
+{% endblock %}

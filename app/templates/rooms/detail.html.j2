@@ -5,8 +5,12 @@
 {% block content %}
 <div class="row mb-3">
     <div class="col-md-6">
-        <h1>
-            <i class="bi bi-door-open"></i> {{ room.name }}
+        <h1 class="d-flex align-items-center gap-2">
+            <i class="bi bi-door-open"></i>
+            <span>{{ room.name }}</span>
+            <button type="button" class="btn btn-link p-0 copy-btn" data-copy="{{ room.name }}" title="Copy room name">
+                <i class="bi bi-clipboard"></i>
+            </button>
         </h1>
         <nav aria-label="breadcrumb">
             <ol class="breadcrumb">
@@ -16,7 +20,26 @@
             </ol>
         </nav>
     </div>
-    <div class="col-md-6 text-end">
+    <div class="col-md-6 text-end d-flex gap-2 justify-content-end flex-wrap">
+        {% if not is_readonly() %}
+        {% if annotations.pinned %}
+        <form method="post" action="/rooms/{{ room.name }}/unpin" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="btn btn-warning" title="Unpin room">
+                <i class="bi bi-pin-angle-fill"></i> Pinned
+            </button>
+        </form>
+        {% else %}
+        <form method="post" action="/rooms/{{ room.name }}/pin" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="btn btn-outline-warning" title="Pin room">
+                <i class="bi bi-pin-angle"></i> Pin
+            </button>
+        </form>
+        {% endif %}
+        <button type="button" class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#annotateModal">
+            <i class="bi bi-tag"></i> Tags &amp; Notes
+        </button>
         <button type="button" class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#editRoomModal">
             <i class="bi bi-pencil"></i> Edit Metadata
         </button>
@@ -26,6 +49,7 @@
         <button type="button" class="btn btn-danger" onclick="confirmDeleteRoom('{{ room.name }}')">
             <i class="bi bi-trash"></i> Close Room
         </button>
+        {% endif %}
     </div>
 </div>
 
@@ -65,13 +89,71 @@
     </div>
 </div>
 
-{% if room.metadata %}
+{% if room.metadata or annotations.tags or annotations.note %}
+<div class="row mb-4">
+    {% if room.metadata %}
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">Metadata</div>
+            <div class="card-body">
+                <pre class="mb-0" style="font-size:.85rem;">{{ room.metadata }}</pre>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% if annotations.tags or annotations.note %}
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-tag"></i> Tags &amp; Notes</span>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#annotateModal">
+                    <i class="bi bi-pencil"></i>
+                </button>
+            </div>
+            <div class="card-body">
+                {% if annotations.tags %}
+                <div class="mb-2">
+                    {% for tag in annotations.tags %}
+                    <span class="badge bg-secondary me-1">{{ tag }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% if annotations.note %}
+                <p class="mb-0 text-muted" style="font-size:.9rem;">{{ annotations.note }}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Timeline -->
+{% if timeline %}
 <div class="row mb-4">
     <div class="col-12">
         <div class="card">
-            <div class="card-header">Metadata</div>
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-clock-history"></i> Room Timeline</h5>
+            </div>
             <div class="card-body">
-                <pre class="mb-0">{{ room.metadata }}</pre>
+                <div class="timeline">
+                    {% for event in timeline %}
+                    <div class="d-flex gap-3 mb-3 align-items-start">
+                        <div class="flex-shrink-0 text-center" style="width:32px;">
+                            <span class="badge bg-{{ event.color }} rounded-circle p-2">
+                                <i class="bi {{ event.icon }}"></i>
+                            </span>
+                        </div>
+                        <div>
+                            <div class="fw-semibold" style="font-size:.9rem;">{{ event.label }}</div>
+                            {% if event.ts %}
+                            <small class="text-muted">{{ event.ts }}</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
             </div>
         </div>
     </div>
@@ -135,7 +217,12 @@
                                 {% for participant in participants %}
                                 <tr>
                                     <td>
-                                        <strong>{{ participant.identity }}</strong>
+                                        <div class="d-flex align-items-center gap-1">
+                                            <strong>{{ participant.identity }}</strong>
+                                            <button type="button" class="btn btn-link p-0 copy-btn" data-copy="{{ participant.identity }}" title="Copy identity">
+                                                <i class="bi bi-clipboard" style="font-size:.8rem;"></i>
+                                            </button>
+                                        </div>
                                         {% if participant.metadata %}
                                         <br><small class="text-muted">{{ participant.metadata[:30] }}</small>
                                         {% endif %}
@@ -325,6 +412,51 @@
     </div>
 </div>
 
+<!-- Annotate Room Modal -->
+<div class="modal fade" id="annotateModal" tabindex="-1" aria-labelledby="annotateModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="/rooms/{{ room.name }}/annotate">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="annotateModalLabel">
+                        <i class="bi bi-tag"></i> Tags &amp; Notes: {{ room.name }}
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Tags</label>
+                        <div class="d-flex flex-wrap gap-2">
+                            {% for tag in preset_tags %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="tags" value="{{ tag }}"
+                                    id="tag_{{ tag }}"
+                                    {% if tag in annotations.tags %}checked{% endif %}>
+                                <label class="form-check-label" for="tag_{{ tag }}">{{ tag }}</label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="mt-2">
+                            <input type="text" class="form-control form-control-sm" id="custom_tag" placeholder="Custom tag (press Enter to add)">
+                            <div id="custom_tags_container" class="d-flex flex-wrap gap-1 mt-1"></div>
+                        </div>
+                    </div>
+                    <div class="mb-0">
+                        <label for="annotate_note" class="form-label fw-semibold">Note</label>
+                        <textarea class="form-control" name="note" id="annotate_note" rows="3"
+                            placeholder="Add a short operator note…">{{ annotations.note }}</textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <!-- Delete Confirmation Form -->
 <form id="deleteRoomForm" method="post" action="/rooms/{{ room.name }}/delete" style="display: none;">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -373,6 +505,39 @@ function confirmDeleteRoom(roomName) {
         document.getElementById('deleteRoomForm').submit();
     }
 }
+
+// Custom tags support in annotate modal
+(function () {
+    const input = document.getElementById('custom_tag');
+    const container = document.getElementById('custom_tags_container');
+    if (!input || !container) return;
+
+    // Pre-populate custom tags (tags not in preset list)
+    const presetTags = {{ preset_tags | tojson }};
+    const existingTags = {{ annotations.tags | tojson }};
+    existingTags.filter(t => !presetTags.includes(t)).forEach(addCustomTag);
+
+    input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const val = this.value.trim();
+            if (val) { addCustomTag(val); this.value = ''; }
+        }
+    });
+
+    function addCustomTag(val) {
+        const wrap = document.createElement('span');
+        wrap.className = 'badge bg-secondary d-inline-flex align-items-center gap-1';
+        const hidden = document.createElement('input');
+        hidden.type = 'hidden'; hidden.name = 'tags'; hidden.value = val;
+        wrap.appendChild(document.createTextNode(val + ' '));
+        const rm = document.createElement('button');
+        rm.type = 'button'; rm.className = 'btn-close btn-close-white'; rm.style.fontSize = '.5rem';
+        rm.onclick = () => wrap.remove();
+        wrap.appendChild(hidden); wrap.appendChild(rm);
+        container.appendChild(wrap);
+    }
+}());
 
 let autoRefreshInterval = null;
 

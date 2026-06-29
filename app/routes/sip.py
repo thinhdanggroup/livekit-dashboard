@@ -1,6 +1,7 @@
 """SIP telephony routes"""
 
 import json
+import logging
 import os
 from fastapi import APIRouter, Depends, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -11,6 +12,7 @@ from app.services.livekit import LiveKitClient, get_livekit_client
 from app.security.basic_auth import requires_admin, get_current_user
 from app.security.csrf import get_csrf_token, verify_csrf_token
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -35,7 +37,6 @@ async def sip_outbound_index(
             "request": request,
             "trunks": trunks,
             "current_user": current_user,
-            "sip_enabled": lk.sip_enabled,
             "csrf_token": get_csrf_token(request),
             "flash_message": flash_message,
             "flash_type": flash_type,
@@ -67,7 +68,7 @@ async def create_sip_call(
             participant_identity=participant_identity,
         )
     except Exception as e:
-        print(f"Error creating SIP call: {e}")
+        logger.warning("Error creating SIP call: %s", e)
 
     return RedirectResponse(url="/sip-outbound", status_code=303)
 
@@ -160,7 +161,7 @@ async def create_sip_trunk(
         )
     except Exception as e:
         error_msg = str(e)
-        print(f"Error creating SIP trunk: {e}")
+        logger.warning("Error creating SIP trunk: %s", e)
         import traceback
 
         traceback.print_exc()
@@ -240,15 +241,10 @@ async def update_sip_trunk(
             except json.JSONDecodeError:
                 pass
 
-        # Debug logging
-        print(f"Updating trunk {sip_trunk_id} with:")
-        print(f"  name: {trunk_name}")
-        print(f"  address: {address}")
-        print(f"  transport: {transport}")
-        print(f"  numbers: {numbers_list}")
-        print(f"  username: {username}")
-        print(f"  destination_country: {destination_country}")
-        print(f"  metadata: {metadata}")
+        logger.debug(
+            "Updating trunk %s: name=%s address=%s transport=%s numbers=%s username=%s country=%s metadata=%s",
+            sip_trunk_id, trunk_name, address, transport, numbers_list, username, destination_country, metadata,
+        )
 
         await lk.update_sip_trunk(
             sip_trunk_id=sip_trunk_id,
@@ -272,7 +268,7 @@ async def update_sip_trunk(
         )
     except Exception as e:
         error_msg = str(e)
-        print(f"Error updating SIP trunk: {e}")
+        logger.warning("Error updating SIP trunk: %s", e)
         import traceback
 
         traceback.print_exc()
@@ -308,7 +304,7 @@ async def delete_sip_trunk(
         )
     except Exception as e:
         error_msg = str(e)
-        print(f"Error deleting SIP trunk: {e}")
+        logger.warning("Error deleting SIP trunk: %s", e)
         import traceback
 
         traceback.print_exc()
@@ -342,7 +338,6 @@ async def sip_inbound_index(
             "rules": rules,
             "trunks": trunks,
             "current_user": current_user,
-            "sip_enabled": lk.sip_enabled,
             "csrf_token": get_csrf_token(request),
             "flash_message": flash_message,
             "flash_type": flash_type,
@@ -425,7 +420,7 @@ async def create_sip_inbound_trunk(
         )
     except Exception as e:
         error_msg = str(e)
-        print(f"Error creating SIP inbound trunk: {e}")
+        logger.warning("Error creating SIP inbound trunk: %s", e)
         import traceback
         traceback.print_exc()
 
@@ -513,7 +508,7 @@ async def update_sip_inbound_trunk(
         )
     except Exception as e:
         error_msg = str(e)
-        print(f"Error updating SIP inbound trunk: {e}")
+        logger.warning("Error updating SIP inbound trunk: %s", e)
         import traceback
         traceback.print_exc()
 
@@ -548,7 +543,7 @@ async def delete_sip_inbound_trunk(
         )
     except Exception as e:
         error_msg = str(e)
-        print(f"Error deleting SIP inbound trunk: {e}")
+        logger.warning("Error deleting SIP inbound trunk: %s", e)
         import traceback
         traceback.print_exc()
 
@@ -618,7 +613,7 @@ async def create_dispatch_rule(
         elif hasattr(e, 'args') and e.args:
             error_msg = str(e.args[0])
         
-        print(f"Error creating SIP dispatch rule: {e}")
+        logger.warning("Error creating SIP dispatch rule: %s", e)
         import traceback
         traceback.print_exc()
 
@@ -691,7 +686,7 @@ async def update_dispatch_rule(
         )
     except Exception as e:
         error_msg = str(e)
-        print(f"Error updating SIP dispatch rule: {e}")
+        logger.warning("Error updating SIP dispatch rule: %s", e)
         import traceback
         traceback.print_exc()
 
@@ -726,7 +721,7 @@ async def delete_dispatch_rule(
         )
     except Exception as e:
         error_msg = str(e)
-        print(f"Error deleting SIP dispatch rule: {e}")
+        logger.warning("Error deleting SIP dispatch rule: %s", e)
         import traceback
         traceback.print_exc()
 

@@ -1,0 +1,102 @@
+{% extends "base.html.j2" %}
+
+{% block title %}Diagnostics — LiveKit Dashboard{% endblock %}
+{% block page_title %}Diagnostics{% endblock %}
+{% block page_subtitle %}
+<p class="text-muted mb-0">Support bundle export and webhook tester</p>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+
+  <div class="row g-4">
+
+    <!-- Support Bundle Export -->
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header">
+          <h6 class="mb-0"><i class="bi bi-file-earmark-zip me-2"></i>Room Support Bundle</h6>
+        </div>
+        <div class="card-body">
+          <p class="text-muted small">
+            Download a full JSON snapshot of a room — participants, tracks, timeline,
+            annotations, and API latency. Attach to support tickets or incident reports.
+          </p>
+          <form action="#" method="get" id="bundle-form">
+            <div class="input-group">
+              <input type="text" id="bundle-room-name" class="form-control"
+                     placeholder="Room name" required>
+              <button type="button" class="btn btn-primary"
+                      onclick="downloadBundle()">
+                <i class="bi bi-download"></i> Download
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Webhook Tester -->
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header">
+          <h6 class="mb-0"><i class="bi bi-send me-2"></i>Webhook Tester</h6>
+        </div>
+        <div class="card-body">
+          <p class="text-muted small">
+            Send a test POST to any URL to verify your webhook endpoint is reachable
+            and returns the expected response.
+          </p>
+          <form method="post" action="/diagnostics/webhook-test">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="mb-2">
+              <input type="url" name="url" class="form-control form-control-sm"
+                     placeholder="https://your-endpoint.example.com/hook"
+                     value="{{ webhook_url or '' }}" required>
+            </div>
+            <div class="mb-2">
+              <textarea name="payload" class="form-control form-control-sm font-monospace"
+                        rows="4"
+                        placeholder='{"event": "test"}'
+                        style="font-size:.8rem;">{{ webhook_payload or '{"event": "test", "source": "livekit-dashboard"}' }}</textarea>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">
+              <i class="bi bi-send"></i> Send test
+            </button>
+          </form>
+
+          {% if webhook_result %}
+          <hr class="my-3">
+          <div class="small">
+            {% if webhook_result.error %}
+            <div class="alert alert-danger py-2 mb-0">
+              <strong>Error:</strong> {{ webhook_result.error }}
+            </div>
+            {% else %}
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <span class="badge bg-{{ 'success' if webhook_result.status and webhook_result.status < 300 else 'danger' }}">
+                {{ webhook_result.status }} {{ webhook_result.reason }}
+              </span>
+            </div>
+            {% if webhook_result.body %}
+            <pre class="bg-body-tertiary p-2 rounded small mb-0"
+                 style="max-height:120px;overflow:auto;">{{ webhook_result.body }}</pre>
+            {% endif %}
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function downloadBundle() {
+  const name = document.getElementById('bundle-room-name').value.trim();
+  if (!name) return;
+  window.location.href = '/diagnostics/rooms/' + encodeURIComponent(name) + '/bundle.json';
+}
+</script>
+{% endblock %}

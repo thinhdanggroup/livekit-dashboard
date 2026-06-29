@@ -7,6 +7,7 @@ LiveKit API is unavailable.
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -50,39 +51,37 @@ async def gather_dashboard_stats(lk: LiveKitClient) -> DashboardStats:
         stats.error = str(exc)
         return stats
 
-    try:
-        participants = await lk.get_all_participants_across_rooms()
-        stats.participants_total = len(participants)
-    except Exception:
-        pass
-
-    try:
-        egress_data = await lk.get_egress_analytics()
-        stats.egress_active = egress_data.get("active_jobs", 0)
-    except Exception:
-        pass
-
-    try:
-        ingress_data = await lk.get_ingress_analytics()
-        stats.ingress_active = ingress_data.get("active_ingress", 0)
-    except Exception:
-        pass
-
+    # Run all independent sub-queries concurrently.
+    tasks = [
+        lk.get_all_participants_across_rooms(),
+        lk.get_egress_analytics(),
+        lk.get_ingress_analytics(),
+        lk.get_enhanced_analytics(),
+    ]
     if lk.sip_enabled:
-        try:
-            sip_data = await lk.get_sip_analytics()
-            stats.sip_trunks = sip_data.get("total_trunks", 0)
-        except Exception:
-            pass
+        tasks.append(lk.get_sip_analytics())
 
-    try:
-        analytics = await lk.get_enhanced_analytics()
-        stats.connection_success_pct = float(analytics.get("connection_success", 0.0))
-        stats.connection_minutes = int(analytics.get("connection_minutes", 0))
-        stats.platforms = analytics.get("platforms", {})
-        stats.connection_types = analytics.get("connection_types", {})
-    except Exception:
-        pass
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    participants_res, egress_res, ingress_res, enhanced_res = results[:4]
+
+    if not isinstance(participants_res, Exception):
+        stats.participants_total = len(participants_res)
+
+    if not isinstance(egress_res, Exception):
+        stats.egress_active = egress_res.get("active_jobs", 0)
+
+    if not isinstance(ingress_res, Exception):
+        stats.ingress_active = ingress_res.get("active_ingress", 0)
+
+    if not isinstance(enhanced_res, Exception):
+        stats.connection_success_pct = float(enhanced_res.get("connection_success", 0.0))
+        stats.connection_minutes = int(enhanced_res.get("connection_minutes", 0))
+        stats.platforms = enhanced_res.get("platforms", {})
+        stats.connection_types = enhanced_res.get("connection_types", {})
+
+    if lk.sip_enabled and len(results) > 4 and not isinstance(results[4], Exception):
+        stats.sip_trunks = results[4].get("total_trunks", 0)
 
     return stats
 

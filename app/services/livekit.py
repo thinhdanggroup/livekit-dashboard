@@ -4,9 +4,12 @@ import asyncio
 import base64
 import datetime
 import json
+import logging
 import os
 import time
 from typing import List, Optional, Tuple, Dict, Any
+
+logger = logging.getLogger(__name__)
 
 from livekit import api, rtc
 
@@ -114,33 +117,37 @@ class LiveKitClient:
                     )
                     detailed_participants.append(detailed)
                 except Exception as e:
-                    print(
-                        f"DEBUG: Could not get details for participant {participant.identity}: {e}"
-                    )
+                    logger.debug("Could not get details for participant %s: %s", participant.identity, e)
                     # Fallback to basic participant info
                     detailed_participants.append(participant)
 
             return detailed_participants
         except Exception as e:
-            print(f"DEBUG: Error getting detailed participants for room {room_name}: {e}")
+            logger.debug("Error getting detailed participants for room %s: %s", room_name, e)
             return []
 
     async def get_all_participants_across_rooms(self) -> List:
         """Get all participants from all rooms with detailed information"""
+        import asyncio
         try:
             rooms, _ = await self.list_rooms()
+            if not rooms:
+                return []
+
+            results = await asyncio.gather(
+                *[self.get_detailed_participants(r.name) for r in rooms],
+                return_exceptions=True,
+            )
+
             all_participants = []
-
-            for room in rooms:
-                participants = await self.get_detailed_participants(room.name)
-                # Add room context to each participant
-                for participant in participants:
-                    participant._room_name = room.name
+            for room, participants in zip(rooms, results):
+                if isinstance(participants, Exception):
+                    continue
+                for p in participants:
+                    p._room_name = room.name
                 all_participants.extend(participants)
-
             return all_participants
-        except Exception as e:
-            print(f"DEBUG: Error getting all participants: {e}")
+        except Exception:
             return []
 
     async def get_participant(self, room_name: str, identity: str):
@@ -342,7 +349,7 @@ class LiveKitClient:
             resp = await lk.sip.list_outbound_trunk(req)
             return list(resp.items) if hasattr(resp, "items") else []
         except Exception as e:
-            print(f"Error listing SIP trunks: {e}")
+            logger.warning("Error listing SIP trunks: %s", e)
             return []
 
     async def list_sip_inbound_trunks(self):
@@ -355,7 +362,7 @@ class LiveKitClient:
             resp = await lk.sip.list_inbound_trunk(req)
             return list(resp.items) if hasattr(resp, "items") else []
         except Exception as e:
-            print(f"Error listing SIP inbound trunks: {e}")
+            logger.warning("Error listing SIP inbound trunks: %s", e)
             return []
 
     def _rule_to_json(self, rule) -> str:
@@ -417,7 +424,7 @@ class LiveKitClient:
 
             return json.dumps(rule_json, indent=2)
         except Exception as e:
-            print(f"Error converting rule to JSON: {e}")
+            logger.warning("Error converting rule to JSON: %s", e)
             return "{}"
 
     async def list_sip_dispatch_rules(self):
@@ -480,7 +487,7 @@ class LiveKitClient:
                 wrapped_rules.append(RuleWrapper(rule, rule_type, rule_json_b64))
             return wrapped_rules
         except Exception as e:
-            print(f"Error listing SIP dispatch rules: {e}")
+            logger.warning("Error listing SIP dispatch rules: %s", e)
             import traceback
 
             traceback.print_exc()
@@ -796,7 +803,7 @@ class LiveKitClient:
         lk = await self._get_api()
 
         # If plain_json is provided, parse it and use it directly
-        print(f"DEBUG: plain_json: {plain_json}")
+        logger.debug("create_dispatch_rule: plain_json=%s", bool(plain_json))
         if plain_json:
             try:
                 json_data = json.loads(plain_json)
@@ -816,7 +823,7 @@ class LiveKitClient:
                 raise ValueError(f"Error parsing JSON: {str(e)}")
 
         # Build dispatch rule based on type
-        print(f"DEBUG: dispatch_rule_type: {dispatch_rule_type}")
+        logger.debug("create_dispatch_rule: dispatch_rule_type=%s", dispatch_rule_type)
         if dispatch_rule_type == "direct":
             # Direct dispatch: route to a specific room
             direct_rule = api.SIPDispatchRuleDirect(
@@ -977,7 +984,7 @@ class LiveKitClient:
         lk = await self._get_api()
 
         # If plain_json is provided, parse it and use it directly
-        print(f"DEBUG: plain_json: {plain_json}")
+        logger.debug("update_dispatch_rule: plain_json=%s", bool(plain_json))
         if plain_json:
             try:
                 json_data = json.loads(plain_json)
@@ -1017,7 +1024,7 @@ class LiveKitClient:
 
         # Build dispatch rule based on type
         # If dispatch_rule_type is provided, set the appropriate rule type
-        print(f"DEBUG: dispatch_rule_type: {dispatch_rule_type}")
+        logger.debug("update_dispatch_rule: dispatch_rule_type=%s", dispatch_rule_type)
         if dispatch_rule_type:
             if dispatch_rule_type == "direct":
                 # Direct dispatch: route to a specific room
@@ -1033,7 +1040,7 @@ class LiveKitClient:
                     pin=pin or "",
                 )
                 rule = api.SIPDispatchRule(dispatch_rule_individual=individual_rule)
-                print(f"DEBUG: individual_rule: {individual_rule}")
+                logger.debug("update_dispatch_rule: individual_rule=%s", individual_rule)
             elif dispatch_rule_type == "callee":
                 # Callee dispatch: route based on called number
                 callee_rule = api.SIPDispatchRuleCallee(
@@ -1142,7 +1149,7 @@ class LiveKitClient:
                 except Exception as e:
                     err = str(e)
                     if "503" not in err and "no response from servers" not in err:
-                        print(f"DEBUG: Unexpected dispatch error for room {room_name}: {e}")
+                        logger.debug("Unexpected dispatch error for room %s: %s", room_name, e)
                     return []
 
         results = await asyncio.gather(*[_fetch(r.name) for r in candidates])
@@ -1171,9 +1178,8 @@ class LiveKitClient:
     async def get_room_analytics(self) -> dict:
         """Get comprehensive room analytics data"""
         try:
-            print("DEBUG: Fetching room analytics...")
             rooms, latency = await self.list_rooms()
-            print(f"DEBUG: Found {len(rooms)} rooms")
+            logger.debug("get_room_analytics: found %d rooms", len(rooms))
 
             # Calculate room statistics
             total_participants = sum(getattr(r, "num_participants", 0) for r in rooms)
@@ -1209,11 +1215,10 @@ class LiveKitClient:
                 "rooms_created_today": rooms_created_today,
                 "api_latency_ms": round(latency * 1000, 2),
             }
-            print(f"DEBUG: Room analytics result: {result}")
             return result
 
         except Exception as e:
-            print(f"DEBUG: Error getting room analytics: {e}")
+            logger.warning("Error getting room analytics: %s", e)
             return {
                 "total_rooms": 0,
                 "active_rooms": 0,
@@ -1228,14 +1233,12 @@ class LiveKitClient:
     # Egress Analytics
     async def get_egress_analytics(self) -> dict:
         """Get comprehensive egress analytics data"""
+        import asyncio
         try:
-            print("DEBUG: Fetching egress analytics...")
-
-            # Get active and recent egress jobs
-            active_egress = await self.list_egress(active=True)
-            all_egress = await self.list_egress(active=False)  # All recent jobs
-
-            print(f"DEBUG: Active egress: {len(active_egress)}, All recent: {len(all_egress)}")
+            active_egress, all_egress = await asyncio.gather(
+                self.list_egress(active=True),
+                self.list_egress(active=False),
+            )
 
             # Calculate statistics
             active_count = len(active_egress)
@@ -1275,11 +1278,10 @@ class LiveKitClient:
                 "storage_used_gb": round(storage_used_gb, 1),
                 "total_jobs_today": len(all_egress),  # Simplified
             }
-            print(f"DEBUG: Egress analytics result: {result}")
             return result
 
         except Exception as e:
-            print(f"DEBUG: Error getting egress analytics: {e}")
+            logger.warning("Error getting egress analytics: %s", e)
             return {
                 "active_jobs": 0,
                 "completed_jobs": 0,
@@ -1294,10 +1296,8 @@ class LiveKitClient:
     async def get_ingress_analytics(self) -> dict:
         """Get comprehensive ingress analytics data"""
         try:
-            print("DEBUG: Fetching ingress analytics...")
             ingress_list = await self.list_ingress()
-
-            print(f"DEBUG: Found {len(ingress_list)} ingress items")
+            logger.debug("get_ingress_analytics: found %d ingress items", len(ingress_list))
 
             # Calculate statistics
             total_ingress = len(ingress_list)
@@ -1324,11 +1324,10 @@ class LiveKitClient:
                 "connection_stability": connection_stability,
                 "streams_today": total_ingress,  # Simplified
             }
-            print(f"DEBUG: Ingress analytics result: {result}")
             return result
 
         except Exception as e:
-            print(f"DEBUG: Error getting ingress analytics: {e}")
+            logger.warning("Error getting ingress analytics: %s", e)
             return {
                 "total_ingress": 0,
                 "active_ingress": 0,
@@ -1422,7 +1421,7 @@ class LiveKitClient:
             }
 
         except Exception as e:
-            print(f"DEBUG: Error getting enhanced analytics: {e}")
+            logger.warning("Error getting enhanced analytics: %s", e)
             # Fallback to sample data
             return {
                 "connection_success": 95.8,
@@ -1436,10 +1435,7 @@ class LiveKitClient:
 
     async def get_sip_analytics(self) -> dict:
         """Get SIP/telephony analytics data"""
-        print(f"DEBUG: get_sip_analytics called, sip_enabled = {self.sip_enabled}")
-
         if not self.sip_enabled:
-            print("DEBUG: SIP is not enabled, returning empty analytics")
             return {
                 "total_trunks": 0,
                 "inbound_trunks": 0,
@@ -1451,16 +1447,11 @@ class LiveKitClient:
             }
 
         try:
-            print("DEBUG: Fetching SIP data...")
-            # Get trunk counts
             inbound_trunks = await self.list_sip_inbound_trunks()
-            print(f"DEBUG: inbound_trunks count: {len(inbound_trunks)}")
-
             outbound_trunks = await self.list_sip_trunks()
-            print(f"DEBUG: outbound_trunks count: {len(outbound_trunks)}")
-
             dispatch_rules = await self.list_sip_dispatch_rules()
-            print(f"DEBUG: dispatch_rules count: {len(dispatch_rules)}")
+            logger.debug("get_sip_analytics: in=%d out=%d rules=%d",
+                         len(inbound_trunks), len(outbound_trunks), len(dispatch_rules))
 
             # Analyze trunk status
             trunk_status = {"active": 0, "configured": 0}
@@ -1491,10 +1482,9 @@ class LiveKitClient:
                 "call_volume": 42,  # Mock data - would need actual call metrics
                 "connection_success_rate": connection_success_rate,
             }
-            print(f"DEBUG: SIP analytics result: {result}")
             return result
         except Exception as e:
-            print(f"DEBUG: Error getting SIP analytics: {e}")
+            logger.warning("Error getting SIP analytics: %s", e)
             return {
                 "total_trunks": 0,
                 "inbound_trunks": 0,

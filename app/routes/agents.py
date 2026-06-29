@@ -1,5 +1,6 @@
 """Agent dispatch management routes"""
 
+import logging
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -10,6 +11,8 @@ from app.security.basic_auth import get_current_user, requires_admin
 from app.security.csrf import get_csrf_token, verify_csrf_token
 from app.services.livekit import LiveKitClient, get_livekit_client
 from app.utils.flash import flash, get_flash
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -81,7 +84,7 @@ async def agents_index(
     try:
         all_dispatches, latency = await lk.list_all_dispatches()
     except Exception as e:
-        print(f"DEBUG: Error fetching dispatches: {e}")
+        logger.debug("Error fetching dispatches: %s", e)
         all_dispatches, latency = [], 0.0
 
     summaries = [_dispatch_summary(d) for d in all_dispatches]
@@ -100,7 +103,6 @@ async def agents_index(
         {
             "request": request,
             "current_user": get_current_user(request),
-            "sip_enabled": lk.sip_enabled,
             "csrf_token": get_csrf_token(request),
             "agent_groups": agent_groups,
             "total_agents": len(agent_groups),
@@ -127,7 +129,7 @@ async def agent_detail(
     try:
         all_dispatches, latency = await lk.list_all_dispatches()
     except Exception as e:
-        print(f"DEBUG: Error fetching dispatches: {e}")
+        logger.debug("Error fetching dispatches: %s", e)
         all_dispatches, latency = [], 0.0
 
     # agent_name in URL is the display name; match against raw agent_name field
@@ -156,7 +158,6 @@ async def agent_detail(
         {
             "request": request,
             "current_user": get_current_user(request),
-            "sip_enabled": lk.sip_enabled,
             "csrf_token": get_csrf_token(request),
             "agent_name": agent_name,
             "agent_id": agent_id,
@@ -191,7 +192,7 @@ async def create_dispatch(
         await lk.create_dispatch(agent_name=name, room=rm, metadata=metadata)
         flash(request, f"Agent '{name}' dispatched to room '{rm}'.", "success")
     except Exception as e:
-        print(f"Error creating dispatch: {e}")
+        logger.warning("Error creating dispatch: %s", e)
         flash(request, f"Failed to dispatch agent: {e}", "danger")
     return RedirectResponse(url="/agents", status_code=303)
 
@@ -213,6 +214,6 @@ async def delete_dispatch(
         await lk.delete_dispatch(dispatch_id=dispatch_id, room=room)
         flash(request, f"Dispatch '{dispatch_id}' deleted.", "success")
     except Exception as e:
-        print(f"Error deleting dispatch {dispatch_id}: {e}")
+        logger.warning("Error deleting dispatch %s: %s", dispatch_id, e)
         flash(request, f"Failed to delete dispatch: {e}", "danger")
     return RedirectResponse(url="/agents", status_code=303)

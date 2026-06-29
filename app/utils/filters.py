@@ -78,7 +78,7 @@ def parse_filters(request: Request) -> FilterState:
     """
     params = request.query_params
 
-    q = params.get("q", "").strip()
+    q = (params.get("q", "") or params.get("search", "")).strip()
 
     raw_sort = params.get("sort", "").lower()
     sort = SortOrder.ASC if raw_sort == "asc" else SortOrder.DESC

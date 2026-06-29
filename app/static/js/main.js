@@ -6,6 +6,11 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Fix text colors for dark theme
     fixTextColors();
+
+    // Initialize auto-refresh controls
+    if (window.DashboardAutoRefresh) {
+        window.DashboardAutoRefresh.init();
+    }
     
     // Auto-dismiss alerts after 5 seconds
     const alerts = document.querySelectorAll('.alert:not(.alert-permanent)');
@@ -231,14 +236,191 @@ document.addEventListener('keydown', function(e) {
     }
 });
 
-// Export functions for use in templates
-window.dashboardUtils = {
-    showNotification,
-    copyToClipboard,
-    formatDuration,
-    formatRelativeTime,
-    confirmAction,
-    handleFormSubmit,
-    fixTextColors
-};
+// Copy-to-clipboard buttons
+document.addEventListener('click', function(e) {
+    const button = e.target.closest('.copy-btn');
+    if (!button) return;
+
+    const value = button.dataset.copy || '';
+    if (!value) return;
+
+    navigator.clipboard.writeText(value).then(() => {
+        const icon = button.querySelector('i');
+        if (icon) {
+            const original = icon.className;
+            icon.className = 'bi bi-clipboard-check';
+            setTimeout(() => { icon.className = original; }, 1200);
+        }
+        const message = button.dataset.copySuccess || 'Copied to clipboard!';
+        if (window.showNotification) {
+            showNotification(message, 'success');
+        }
+    }).catch(() => {
+        if (window.showNotification) {
+            showNotification('Failed to copy to clipboard', 'danger');
+        }
+    });
+});
+
+/**
+ * Dashboard auto-refresh controller shared by overview / rooms pages.
+ */
+const DashboardAutoRefresh = (() => {
+    const STORAGE_ENABLED = 'dashboard_auto_refresh_enabled';
+    const STORAGE_INTERVAL = 'dashboard_auto_refresh_interval';
+    let timerId = null;
+
+    function getToggle() {
+        return document.getElementById('auto-refresh-toggle');
+    }
+
+    function getIntervalSelect() {
+        return document.getElementById('refresh-interval-select');
+    }
+
+    function getIntervalSeconds() {
+        const select = getIntervalSelect();
+        const raw = select ? parseInt(select.value, 10) : parseInt(localStorage.getItem(STORAGE_INTERVAL) || '30', 10);
+        return Number.isFinite(raw) && raw > 0 ? raw : 30;
+    }
+
+    function hasPoller() {
+        return Boolean(document.getElementById('rooms-auto-poller'));
+    }
+
+    function syncPoller() {
+        const poller = document.getElementById('rooms-auto-poller');
+        if (!poller || !window.htmx) return;
+
+        if (isEnabled()) {
+            const interval = getIntervalSeconds();
+            const url = new URL(window.location.href);
+            url.searchParams.set('partial', '1');
+            poller.setAttribute('hx-get', url.pathname + url.search);
+            poller.setAttribute('hx-target', '#rooms-list');
+            poller.setAttribute('hx-swap', 'outerHTML');
+            poller.setAttribute('hx-trigger', `every ${interval}s`);
+        } else {
+            poller.removeAttribute('hx-get');
+            poller.removeAttribute('hx-target');
+            poller.removeAttribute('hx-swap');
+            poller.removeAttribute('hx-trigger');
+        }
+        htmx.process(poller);
+    }
+
+    function stopTimer() {
+        if (timerId) {
+            clearInterval(timerId);
+            timerId = null;
+        }
+    }
+
+    function startTimer() {
+        stopTimer();
+        if (!isEnabled() || hasPoller()) {
+            syncPoller();
+            return;
+        }
+
+        const interval = getIntervalSeconds();
+        timerId = setInterval(() => {
+            window.location.reload();
+        }, interval * 1000);
+    }
+
+    function isEnabled() {
+        return localStorage.getItem(STORAGE_ENABLED) === '1';
+    }
+
+    function setEnabled(enabled) {
+        localStorage.setItem(STORAGE_ENABLED, enabled ? '1' : '0');
+        const toggle = getToggle();
+        if (toggle) toggle.checked = enabled;
+        if (enabled) {
+            startTimer();
+        } else {
+            stopTimer();
+            syncPoller();
+        }
+    }
+
+    function setIntervalSeconds(seconds) {
+        const safe = Number.isFinite(seconds) && seconds > 0 ? seconds : 30;
+        localStorage.setItem(STORAGE_INTERVAL, String(safe));
+        const select = getIntervalSelect();
+        if (select) select.value = String(safe);
+        if (isEnabled()) {
+            startTimer();
+        }
+    }
+
+    function init() {
+        const toggle = getToggle();
+        const select = getIntervalSelect();
+        const enabled = isEnabled();
+        const interval = getIntervalSeconds();
+
+        if (toggle) toggle.checked = enabled;
+        if (select) select.value = String(interval);
+
+        if (enabled) {
+            startTimer();
+        } else {
+            syncPoller();
+        }
+    }
+
+    return {
+        init,
+        toggle: setEnabled,
+        setInterval: setIntervalSeconds,
+        syncPoller,
+    };
+})();
+
+window.DashboardAutoRefresh = DashboardAutoRefresh;
+
+/**
+ * Theme controller — cycles dark → light → system, persists to localStorage.
+ */
+const DashboardTheme = (() => {
+    const KEY = 'dashboard_theme';
+    const ICONS = { dark: 'bi-moon-stars', light: 'bi-sun', system: 'bi-circle-half' };
+    const CYCLE = { dark: 'light', light: 'system', system: 'dark' };
+
+    function current() {
+        return localStorage.getItem(KEY) || 'dark';
+    }
+
+    function apply(theme) {
+        let resolved = theme;
+        if (theme === 'system') {
+            resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-bs-theme', resolved);
+        const icon = document.getElementById('theme-icon');
+        if (icon) {
+            icon.className = 'bi ' + (ICONS[theme] || ICONS.dark);
+        }
+    }
+
+    function cycle() {
+        const next = CYCLE[current()] || 'dark';
+        localStorage.setItem(KEY, next);
+        apply(next);
+    }
+
+    function init() {
+        apply(current());
+    }
+
+    return { cycle, init };
+})();
+
+window.DashboardTheme = DashboardTheme;
+
+document.addEventListener('DOMContentLoaded', function () {
+    if (window.DashboardTheme) DashboardTheme.init();
+});
 

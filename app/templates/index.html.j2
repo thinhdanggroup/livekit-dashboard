@@ -11,22 +11,36 @@
         </div>
     </div>
     <div class="d-flex align-items-center gap-2">
-        <button class="btn btn-sm btn-secondary" onclick="toggleAutoRefresh()">
-            <i class="bi bi-arrow-clockwise"></i>
-            <span id="auto-refresh-text">Auto-refresh off</span>
-        </button>
-        <select class="form-select form-select-sm" style="width: auto;" id="time-range">
-            <option value="7">Past 7 days</option>
-            <option value="30">Past 30 days</option>
-            <option value="90">Past 90 days</option>
-        </select>
+        <a href="/export.json{% if filters.as_query_params() %}?{{ filters.as_query_params() | urlencode }}{% endif %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-download"></i> Export JSON
+        </a>
     </div>
 </div>
 {% endblock %}
 
 {% block content %}
+<!-- Time-range + refresh bar -->
+{% with base_url="/", show_refresh=true %}
+{% include "partials/_time_range_bar.html.j2" %}
+{% endwith %}
+
 <!-- Health Summary -->
 {% include "partials/_health_summary.html.j2" %}
+
+<!-- Anomaly observations -->
+{% if observations %}
+<div class="mb-4">
+  {% for obs in observations %}
+  <div class="alert alert-{{ 'danger' if obs.severity == 'critical' else ('warning' if obs.severity == 'warning' else 'info') }} d-flex align-items-start gap-2 mb-2" role="alert">
+    <i class="bi {{ obs.icon }} mt-1 flex-shrink-0"></i>
+    <div>
+      <strong>{{ obs.title }}</strong>
+      <div class="small">{{ obs.detail }}</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
 
 <!-- Get Started Section -->
 <div class="get-started-section">
@@ -384,7 +398,7 @@
     </div>
     
     <!-- Telephony -->
-    {% if sip_enabled %}
+    {% if sip_enabled() %}
     <div class="expandable-section">
         <button class="expandable-header" onclick="toggleSection('telephony')">
             <div class="d-flex align-items-center gap-2">
@@ -563,7 +577,7 @@ if (connectionTypeCtx) {
 }
 {% endif %}
 
-{% if sip_enabled and sip_analytics and sip_analytics.trunk_status %}
+{% if sip_enabled() and sip_analytics and sip_analytics.trunk_status %}
 const trunkStatusCtx = document.getElementById('trunkStatusChart');
 if (trunkStatusCtx) {
     new Chart(trunkStatusCtx, {

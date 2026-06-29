@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from starlette.middleware.sessions import SessionMiddleware
 
-from app.routes import overview, rooms, egress, ingress, sip, settings, sandbox, auth, agents, homer, search
+from app.routes import overview, rooms, egress, ingress, sip, settings, sandbox, auth, agents, homer, search, views, alerts, audit, diagnostics, events
 from app.security.csrf import get_csrf_token
 from app.utils.formatters import format_duration, format_pct, status_color, format_number
 
@@ -71,6 +71,17 @@ async def ensure_csrf_token(request: Request, call_next):
     return await call_next(request)
 
 
+@app.middleware("http")
+async def enforce_readonly_mode(request: Request, call_next):
+    """Block mutating requests when DASHBOARD_ROLE=readonly."""
+    if os.environ.get("DASHBOARD_ROLE", "admin").lower() == "readonly":
+        if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+            if not request.url.path.startswith("/auth"):
+                from fastapi.responses import Response as _Resp
+                return _Resp("Read-only mode — mutations are disabled.", status_code=403)
+    return await call_next(request)
+
+
 # Add CORS middleware (restrictive by default)
 app.add_middleware(
     CORSMiddleware,
@@ -89,6 +100,8 @@ CSS_VERSION = "0.1.0"
 
 templates.env.globals["css_version"] = CSS_VERSION
 templates.env.globals["homer_enabled"] = lambda: os.environ.get("ENABLE_HOMER", "false").lower() == "true"
+templates.env.globals["sip_enabled"] = lambda: os.environ.get("ENABLE_SIP", "false").lower() == "true"
+templates.env.globals["is_readonly"] = lambda: os.environ.get("DASHBOARD_ROLE", "admin").lower() == "readonly"
 
 
 def _datetimeformat(value: int) -> str:
@@ -137,6 +150,11 @@ app.include_router(sandbox.router, tags=["Sandbox"])
 app.include_router(auth.router, tags=["Auth"])
 app.include_router(homer.router, tags=["Homer"])
 app.include_router(search.router, tags=["Search"])
+app.include_router(views.router, tags=["Views"])
+app.include_router(alerts.router, tags=["Alerts"])
+app.include_router(audit.router, tags=["Audit"])
+app.include_router(diagnostics.router, tags=["Diagnostics"])
+app.include_router(events.router, tags=["Events"])
 
 
 # Security headers middleware

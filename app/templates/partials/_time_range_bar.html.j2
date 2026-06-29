@@ -1,0 +1,74 @@
+{#
+  Shared time-range + auto-refresh controls bar.
+
+  Context variables expected:
+    filters      — FilterState instance (from parse_filters)
+    base_url     — base URL for the current page, e.g. "/" or "/rooms"
+  Optional:
+    show_refresh — boolean, default true; hide the auto-refresh toggle on export-only views
+#}
+{% set _show_refresh = show_refresh if show_refresh is defined else true %}
+{% set _active = filters.time_range if filters is defined else '' %}
+{% set _presets = [('15m', 'Last 15m'), ('1h', 'Last 1h'), ('24h', 'Last 24h'), ('7d', 'Last 7d')] %}
+{% set _q = filters.q if filters is defined else '' %}
+
+<div class="d-flex align-items-center gap-2 flex-wrap mb-3" id="time-range-bar" role="toolbar" aria-label="Time range selector">
+    {# Preset buttons #}
+    <div class="btn-group btn-group-sm" role="group" aria-label="Time range presets">
+        {% for key, label in _presets %}
+        <a href="{{ base_url }}?time_range={{ key }}{% if _q %}&q={{ _q | urlencode }}{% endif %}"
+           class="btn {% if _active == key %}btn-primary{% else %}btn-outline-secondary{% endif %}"
+           aria-pressed="{{ 'true' if _active == key else 'false' }}">
+            {{ label }}
+        </a>
+        {% endfor %}
+        {% if _active %}
+        <a href="{{ base_url }}{% if _q %}?q={{ _q | urlencode }}{% endif %}"
+           class="btn btn-outline-secondary"
+           title="Clear time filter"
+           aria-label="Clear time filter">
+            <i class="bi bi-x"></i>
+        </a>
+        {% endif %}
+    </div>
+
+    {% if _show_refresh %}
+    {# Auto-refresh toggle — state driven by JS / localStorage #}
+    <div class="d-flex align-items-center gap-1 ms-1" id="auto-refresh-control">
+        <div class="form-check form-switch mb-0 d-flex align-items-center gap-1">
+            <input
+                class="form-check-input"
+                type="checkbox"
+                role="switch"
+                id="auto-refresh-toggle"
+                aria-label="Auto-refresh"
+                onchange="DashboardAutoRefresh.toggle(this.checked)"
+            >
+            <label class="form-check-label text-muted" for="auto-refresh-toggle" style="font-size:.85rem;">
+                Auto-refresh
+            </label>
+        </div>
+        <select
+            id="refresh-interval-select"
+            class="form-select form-select-sm"
+            style="width:auto;"
+            aria-label="Refresh interval"
+            onchange="DashboardAutoRefresh.setInterval(parseInt(this.value))"
+        >
+            <option value="15">15s</option>
+            <option value="30" selected>30s</option>
+            <option value="60">1m</option>
+            <option value="120">2m</option>
+            <option value="300">5m</option>
+        </select>
+    </div>
+    {% endif %}
+
+    {# Active filter label #}
+    {% if _active %}
+    <span class="badge bg-secondary ms-1">
+        <i class="bi bi-clock"></i>
+        {{ dict(_presets).get(_active, _active) }}
+    </span>
+    {% endif %}
+</div>

@@ -37,7 +37,6 @@ async def search_view(
             "counts": counts,
             "total": len(results),
             "current_user": get_current_user(request),
-            "sip_enabled": lk.sip_enabled,
             "csrf_token": get_csrf_token(request),
         },
     )

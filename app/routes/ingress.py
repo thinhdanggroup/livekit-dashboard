@@ -34,7 +34,6 @@ async def ingress_index(
             "request": request,
             "ingress_list": ingress_list,
             "current_user": current_user,
-            "sip_enabled": lk.sip_enabled,
             "csrf_token": get_csrf_token(request),
             "flash_message": flash_message,
             "flash_type": flash_type,

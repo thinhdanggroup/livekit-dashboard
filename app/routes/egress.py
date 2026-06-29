@@ -1,5 +1,6 @@
 """Egress/Recording routes"""
 
+import logging
 from fastapi import APIRouter, Depends, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from typing import Optional
@@ -9,6 +10,7 @@ from app.services.livekit import LiveKitClient, get_livekit_client
 from app.security.basic_auth import requires_admin, get_current_user
 from app.security.csrf import get_csrf_token, verify_csrf_token
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -30,7 +32,6 @@ async def egress_index(
         "request": request,
         "egress_jobs": egress_jobs,
         "current_user": current_user,
-        "sip_enabled": lk.sip_enabled,
         "csrf_token": get_csrf_token(request),
     }
 
@@ -74,7 +75,7 @@ async def start_egress(
             video_only=(video_only == "on"),
         )
     except Exception as e:
-        print(f"Error starting egress: {e}")
+        logger.warning("Error starting egress: %s", e)
 
     return RedirectResponse(url="/egress", status_code=303)
 
@@ -95,7 +96,7 @@ async def start_track_egress(
         filename = filename.replace("{time}", datetime.now().strftime("%Y%m%d_%H%M%S"))
         await lk.start_track_egress(room_name=room_name, track_sid=track_sid, output_filepath=filename)
     except Exception as e:
-        print(f"Error starting track egress: {e}")
+        logger.warning("Error starting track egress: %s", e)
     return RedirectResponse(url="/egress", status_code=303)
 
 
@@ -113,7 +114,7 @@ async def start_web_egress(
         filename = output_filename.replace("{time}", datetime.now().strftime("%Y%m%d_%H%M%S"))
         await lk.start_web_egress(url=url, output_filepath=filename)
     except Exception as e:
-        print(f"Error starting web egress: {e}")
+        logger.warning("Error starting web egress: %s", e)
     return RedirectResponse(url="/egress", status_code=303)
 
 
@@ -130,6 +131,6 @@ async def stop_egress(
     try:
         await lk.stop_egress(egress_id)
     except Exception as e:
-        print(f"Error stopping egress: {e}")
+        logger.warning("Error stopping egress: %s", e)
 
     return RedirectResponse(url="/egress", status_code=303)

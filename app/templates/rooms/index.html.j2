@@ -9,29 +9,71 @@
 {% endblock %}
 
 {% block content %}
+{% with base_url="/rooms", show_refresh=true %}
+{% include "partials/_time_range_bar.html.j2" %}
+{% endwith %}
+
 <!-- Header Actions -->
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div style="flex: 1; max-width: 400px;">
         <form method="get" action="/rooms">
             <div class="form-group mb-0">
-                <input type="text" name="search" class="form-control" placeholder="Search rooms..." value="{{ search or '' }}">
+                <input type="text" name="search" class="form-control" placeholder="Search rooms..." value="{{ search or filters.q or '' }}">
             </div>
         </form>
     </div>
     <div class="d-flex gap-2 align-items-center">
         <small class="text-muted">SDK Latency: {{ latency_ms }}ms</small>
-        <div class="form-check form-switch mb-0 d-flex align-items-center gap-1" title="Auto-refresh every 30s">
-            <input class="form-check-input" type="checkbox" role="switch" id="auto-refresh-toggle">
-            <label class="form-check-label text-muted" for="auto-refresh-toggle" style="font-size:.85rem;">Auto-refresh</label>
-        </div>
-        <a href="/rooms/export.csv{% if search %}?search={{ search }}{% endif %}" class="btn btn-secondary btn-sm" title="Export CSV">
+        <a href="/rooms/export.csv{% if search or filters.q %}?search={{ (search or filters.q) | urlencode }}{% endif %}" class="btn btn-secondary btn-sm" title="Export CSV">
             <i class="bi bi-download"></i> Export CSV
         </a>
+        {% if not is_readonly() %}
         <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createRoomModal">
             <i class="bi bi-plus-circle"></i> Create Room
         </button>
+        {% endif %}
     </div>
 </div>
+
+<!-- Pinned Rooms Section -->
+{% if pinned_rooms %}
+<div class="mb-3">
+    <h6 class="text-muted mb-2"><i class="bi bi-pin-angle-fill text-warning"></i> Pinned Rooms</h6>
+    <div class="row g-2">
+        {% for room in pinned_rooms %}
+        <div class="col-md-4 col-lg-3">
+            <div class="card border-warning">
+                <div class="card-body py-2 px-3">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <a href="/rooms/{{ room.name }}" class="fw-bold text-decoration-none">{{ room.name }}</a>
+                            {% if room._tags %}
+                            <div class="mt-1">
+                                {% for tag in room._tags %}
+                                <span class="badge badge-secondary" style="font-size:.65rem;">{{ tag }}</span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="d-flex align-items-center gap-1">
+                            <span class="badge {% if room.num_participants > 0 %}badge-success{% else %}badge-secondary{% endif %}">
+                                {{ room.num_participants }}
+                            </span>
+                            <form method="post" action="/rooms/{{ room.name }}/unpin" style="display:inline;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button type="submit" class="btn btn-link p-0 text-warning" title="Unpin room">
+                                    <i class="bi bi-pin-angle-fill"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
 
 <!-- Rooms Table -->
 <div class="card" id="rooms-list">
@@ -53,9 +95,21 @@
                     {% for room in rooms %}
                     <tr>
                         <td>
-                            <strong style="color: var(--text-primary);">{{ room.name }}</strong>
-                            {% if room.metadata %}
-                            <br><small class="text-muted">{{ room.metadata[:50] }}</small>
+                            <div class="d-flex align-items-center gap-1 flex-wrap">
+                                <strong style="color: var(--text-primary);">{{ room.name }}</strong>
+                                <button type="button" class="btn btn-link p-0 copy-btn" data-copy="{{ room.name }}" title="Copy room name">
+                                    <i class="bi bi-clipboard" style="font-size:.8rem;"></i>
+                                </button>
+                                {% if room._tags %}
+                                {% for tag in room._tags %}
+                                <span class="badge badge-secondary" style="font-size:.65rem;">{{ tag }}</span>
+                                {% endfor %}
+                                {% endif %}
+                            </div>
+                            {% if room._note %}
+                            <small class="text-muted">{{ room._note[:60] }}</small>
+                            {% elif room.metadata %}
+                            <small class="text-muted">{{ room.metadata[:50] }}</small>
                             {% endif %}
                         </td>
                         <td>
@@ -200,48 +254,6 @@ document.querySelectorAll('.edit-room-btn').forEach(btn => {
         document.getElementById('editRoomModalLabel').textContent = `Edit Room: ${name}`;
     });
 });
-
-// Auto-refresh toggle (persisted in localStorage)
-(function () {
-    const STORAGE_KEY = 'rooms_auto_refresh';
-    const INTERVAL = 30;
-    const toggle = document.getElementById('auto-refresh-toggle');
-    const poller = document.getElementById('rooms-auto-poller');
-
-    function buildPollUrl() {
-        const url = new URL(window.location.href);
-        url.searchParams.set('partial', '1');
-        return url.pathname + url.search;
-    }
-
-    function enableAutoRefresh() {
-        poller.setAttribute('hx-get', buildPollUrl());
-        poller.setAttribute('hx-target', '#rooms-list');
-        poller.setAttribute('hx-swap', 'outerHTML');
-        poller.setAttribute('hx-trigger', 'every ' + INTERVAL + 's');
-        htmx.process(poller);
-    }
-
-    function disableAutoRefresh() {
-        poller.removeAttribute('hx-trigger');
-        htmx.process(poller);
-    }
-
-    toggle.addEventListener('change', function () {
-        localStorage.setItem(STORAGE_KEY, this.checked ? '1' : '0');
-        if (this.checked) {
-            enableAutoRefresh();
-        } else {
-            disableAutoRefresh();
-        }
-    });
-
-    // Restore persisted preference
-    if (localStorage.getItem(STORAGE_KEY) === '1') {
-        toggle.checked = true;
-        enableAutoRefresh();
-    }
-}());
 </script>
 <style>
 /* HTMX Loading States */

@@ -1,0 +1,72 @@
+{% extends "base.html.j2" %}
+
+{% block title %}Audit Log — LiveKit Dashboard{% endblock %}
+{% block page_title %}Audit Log{% endblock %}
+{% block page_subtitle %}
+<p class="text-muted mb-0">Recent operator actions — rooms, participants, pins, and annotations</p>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+
+  <div class="d-flex justify-content-end mb-3">
+    <form method="post" action="/audit/clear">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn btn-sm btn-outline-danger"
+              onclick="return confirm('Clear all audit log entries?')">
+        <i class="bi bi-trash"></i> Clear log
+      </button>
+    </form>
+  </div>
+
+  {% if not entries %}
+  <div class="card border-0 bg-body-tertiary text-center py-5">
+    <div class="card-body">
+      <i class="bi bi-journal-text fs-1 text-muted"></i>
+      <p class="mt-3 text-muted">No audit entries yet. Operator actions will appear here.</p>
+    </div>
+  </div>
+  {% else %}
+  <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <thead>
+        <tr>
+          <th style="width:160px;">Time</th>
+          <th style="width:160px;">Action</th>
+          <th>Target</th>
+          <th>User</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in entries %}
+        <tr>
+          <td class="font-monospace small text-muted">{{ entry.ts }}</td>
+          <td>
+            {% set action = entry.action %}
+            {% if 'delete' in action or 'kick' in action %}
+            <span class="badge bg-danger">{{ action }}</span>
+            {% elif 'create' in action or 'pin' in action %}
+            <span class="badge bg-success">{{ action }}</span>
+            {% elif 'mute' in action %}
+            <span class="badge bg-warning text-dark">{{ action }}</span>
+            {% else %}
+            <span class="badge bg-secondary">{{ action }}</span>
+            {% endif %}
+          </td>
+          <td class="font-monospace small">{{ entry.target }}</td>
+          <td class="small text-muted">{{ entry.user }}</td>
+          <td class="small text-muted">
+            {% if entry.details %}
+            {{ entry.details | tojson }}
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

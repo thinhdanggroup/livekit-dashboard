@@ -26,7 +26,6 @@ async def sandbox_index(
         {
             "request": request,
             "current_user": current_user,
-            "sip_enabled": lk.sip_enabled,
             "csrf_token": get_csrf_token(request),
             "form_data": {},
             "token": None,
@@ -93,7 +92,6 @@ async def generate_sandbox_token(
         {
             "request": request,
             "current_user": current_user,
-            "sip_enabled": lk.sip_enabled,
             "csrf_token": get_csrf_token(request),
             "form_data": form_data,
             "token": token,

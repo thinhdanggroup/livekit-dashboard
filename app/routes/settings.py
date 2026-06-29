@@ -30,7 +30,6 @@ async def settings_index(
     config = {
         "livekit_url": lk.url,
         "status": server_info.get("status", "unknown"),
-        "sip_enabled": lk.sip_enabled,
         "debug": os.environ.get("DEBUG", "false").lower() == "true",
     }
 
@@ -40,7 +39,6 @@ async def settings_index(
             "request": request,
             "config": config,
             "current_user": current_user,
-            "sip_enabled": lk.sip_enabled,
             "csrf_token": get_csrf_token(request),
         },
     )

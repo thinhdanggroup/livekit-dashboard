@@ -1,0 +1,105 @@
+{% extends "base.html.j2" %}
+
+{% block title %}Saved Views — LiveKit Dashboard{% endblock %}
+{% block page_title %}Saved Views{% endblock %}
+{% block page_subtitle %}
+<p class="text-muted mb-0">Save and restore common filter configurations</p>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+
+  <div class="card mb-4">
+    <div class="card-header"><h6 class="mb-0">Save a new view</h6></div>
+    <div class="card-body">
+      <form method="post" action="/views" class="row g-2 align-items-end">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="col-sm-4">
+          <label class="form-label small">Name</label>
+          <input type="text" name="name" class="form-control form-control-sm"
+                 placeholder="e.g. Active rooms — last 1h" required>
+        </div>
+        <div class="col-sm-2">
+          <label class="form-label small">Time range</label>
+          <select name="time_range" class="form-select form-select-sm">
+            <option value="">Any</option>
+            <option value="15m">Last 15m</option>
+            <option value="1h">Last 1h</option>
+            <option value="24h">Last 24h</option>
+            <option value="7d">Last 7d</option>
+          </select>
+        </div>
+        <div class="col-sm-2">
+          <label class="form-label small">Search</label>
+          <input type="text" name="q" class="form-control form-control-sm" placeholder="Filter term">
+        </div>
+        <div class="col-sm-1">
+          <label class="form-label small">Sort</label>
+          <select name="sort" class="form-select form-select-sm">
+            <option value="desc">Desc</option>
+            <option value="asc">Asc</option>
+          </select>
+        </div>
+        <div class="col-sm-3">
+          <button type="submit" class="btn btn-primary btn-sm w-100">
+            <i class="bi bi-bookmark-plus"></i> Save View
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% if not views %}
+  <div class="card border-0 bg-body-tertiary text-center py-5">
+    <div class="card-body">
+      <i class="bi bi-bookmark fs-1 text-muted"></i>
+      <p class="mt-3 text-muted">No saved views yet. Create one above.</p>
+    </div>
+  </div>
+  {% else %}
+  <div class="row g-3">
+    {% for view in views %}
+    <div class="col-md-6 col-xl-4">
+      <div class="card h-100">
+        <div class="card-body d-flex flex-column">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <h6 class="card-title mb-0">{{ view.name }}</h6>
+            <form method="post" action="/views/{{ view.id }}/delete" class="ms-2">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="btn btn-link btn-sm p-0 text-danger" title="Delete view"
+                      onclick="return confirm('Delete this view?')">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+          </div>
+          <div class="mb-3 flex-grow-1">
+            {% if view.time_range %}
+            <span class="badge bg-secondary me-1"><i class="bi bi-clock"></i> {{ view.time_range }}</span>
+            {% endif %}
+            {% if view.q %}
+            <span class="badge bg-secondary me-1"><i class="bi bi-search"></i> {{ view.q }}</span>
+            {% endif %}
+            {% if view.sort == 'asc' %}
+            <span class="badge bg-secondary me-1"><i class="bi bi-sort-up"></i> asc</span>
+            {% endif %}
+            {% if not view.time_range and not view.q and view.sort == 'desc' %}
+            <span class="text-muted small">Default filters</span>
+            {% endif %}
+          </div>
+          <div class="d-flex gap-2">
+            <a href="/?{{ view.as_query_string() }}" class="btn btn-sm btn-outline-primary flex-grow-1">
+              <i class="bi bi-play"></i> Apply to Overview
+            </a>
+            <a href="/rooms?{{ view.as_query_string() }}" class="btn btn-sm btn-outline-secondary">
+              <i class="bi bi-door-open"></i> Rooms
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}
