@@ -18,8 +18,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from starlette.middleware.sessions import SessionMiddleware
 
-from app.routes import overview, rooms, egress, ingress, sip, settings, sandbox, auth, agents, homer
+from app.routes import overview, rooms, egress, ingress, sip, settings, sandbox, auth, agents, homer, search
 from app.security.csrf import get_csrf_token
+from app.utils.formatters import format_duration, format_pct, status_color, format_number
 
 
 @asynccontextmanager
@@ -112,6 +113,12 @@ def _proto_map_tojson(value) -> str:
 
 templates.env.filters["proto_map_tojson"] = _proto_map_tojson
 
+# Formatting helpers (from app.utils.formatters)
+templates.env.filters["duration"] = format_duration
+templates.env.filters["pct"] = format_pct
+templates.env.filters["status_color"] = status_color
+templates.env.filters["numformat"] = format_number
+
 # Store templates in app state for route access
 app.state.templates = templates
 
@@ -129,6 +136,7 @@ app.include_router(settings.router, tags=["Settings"])
 app.include_router(sandbox.router, tags=["Sandbox"])
 app.include_router(auth.router, tags=["Auth"])
 app.include_router(homer.router, tags=["Homer"])
+app.include_router(search.router, tags=["Search"])
 
 
 # Security headers middleware

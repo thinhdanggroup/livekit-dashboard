@@ -20,6 +20,13 @@
     </div>
     <div class="d-flex gap-2 align-items-center">
         <small class="text-muted">SDK Latency: {{ latency_ms }}ms</small>
+        <div class="form-check form-switch mb-0 d-flex align-items-center gap-1" title="Auto-refresh every 30s">
+            <input class="form-check-input" type="checkbox" role="switch" id="auto-refresh-toggle">
+            <label class="form-check-label text-muted" for="auto-refresh-toggle" style="font-size:.85rem;">Auto-refresh</label>
+        </div>
+        <a href="/rooms/export.csv{% if search %}?search={{ search }}{% endif %}" class="btn btn-secondary btn-sm" title="Export CSV">
+            <i class="bi bi-download"></i> Export CSV
+        </a>
         <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createRoomModal">
             <i class="bi bi-plus-circle"></i> Create Room
         </button>
@@ -109,6 +116,9 @@
     </div>
 </div>
 
+<!-- Auto-refresh polling element (invisible, never swapped) -->
+<span id="rooms-auto-poller"></span>
+
 <!-- Edit Room Modal -->
 <div class="modal fade" id="editRoomModal" tabindex="-1" aria-labelledby="editRoomModalLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -190,6 +200,48 @@ document.querySelectorAll('.edit-room-btn').forEach(btn => {
         document.getElementById('editRoomModalLabel').textContent = `Edit Room: ${name}`;
     });
 });
+
+// Auto-refresh toggle (persisted in localStorage)
+(function () {
+    const STORAGE_KEY = 'rooms_auto_refresh';
+    const INTERVAL = 30;
+    const toggle = document.getElementById('auto-refresh-toggle');
+    const poller = document.getElementById('rooms-auto-poller');
+
+    function buildPollUrl() {
+        const url = new URL(window.location.href);
+        url.searchParams.set('partial', '1');
+        return url.pathname + url.search;
+    }
+
+    function enableAutoRefresh() {
+        poller.setAttribute('hx-get', buildPollUrl());
+        poller.setAttribute('hx-target', '#rooms-list');
+        poller.setAttribute('hx-swap', 'outerHTML');
+        poller.setAttribute('hx-trigger', 'every ' + INTERVAL + 's');
+        htmx.process(poller);
+    }
+
+    function disableAutoRefresh() {
+        poller.removeAttribute('hx-trigger');
+        htmx.process(poller);
+    }
+
+    toggle.addEventListener('change', function () {
+        localStorage.setItem(STORAGE_KEY, this.checked ? '1' : '0');
+        if (this.checked) {
+            enableAutoRefresh();
+        } else {
+            disableAutoRefresh();
+        }
+    });
+
+    // Restore persisted preference
+    if (localStorage.getItem(STORAGE_KEY) === '1') {
+        toggle.checked = true;
+        enableAutoRefresh();
+    }
+}());
 </script>
 <style>
 /* HTMX Loading States */

@@ -104,6 +104,25 @@
                 {% block page_subtitle %}{% endblock %}
             </div>
             {% endblock %}
+            <form class="top-bar-search" action="/search" method="get" role="search" autocomplete="off">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-transparent border-end-0">
+                        <i class="bi bi-search text-secondary"></i>
+                    </span>
+                    <input
+                        id="global-search-input"
+                        type="search"
+                        name="q"
+                        class="form-control border-start-0 ps-0"
+                        placeholder="Search…"
+                        aria-label="Global search"
+                        value="{{ request.query_params.get('q', '') if request.url.path == '/search' else '' }}"
+                    >
+                    <span class="input-group-text bg-transparent border-start-0 kbd-hint text-secondary" title="Ctrl+K / ⌘K">
+                        <kbd>⌘K</kbd>
+                    </span>
+                </div>
+            </form>
             <div class="top-bar-actions">
                 <div class="user-menu">
                     <i class="bi bi-person-circle"></i>

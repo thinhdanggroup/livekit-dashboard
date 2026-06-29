@@ -127,3 +127,63 @@ class TestParticipantManagement:
             status.HTTP_403_FORBIDDEN,
         )
         mock_lk.update_participant.assert_not_awaited()
+
+
+class TestRoomsExportCsv:
+    def _make_room(self, name, participants=2, max_p=100, timeout=300, metadata=""):
+        r = MagicMock()
+        r.name = name
+        r.num_participants = participants
+        r.max_participants = max_p
+        r.creation_time = 0
+        r.empty_timeout = timeout
+        r.metadata = metadata
+        return r
+
+    def test_export_requires_auth(self, client):
+        r = client.get("/rooms/export.csv")
+        assert r.status_code == status.HTTP_401_UNAUTHORIZED
+
+    def test_export_returns_csv(self, rooms_client):
+        c, mock_lk = rooms_client
+        mock_lk.list_rooms = AsyncMock(return_value=([
+            self._make_room("room-a", participants=3, metadata='{"env":"prod"}'),
+            self._make_room("room-b"),
+        ], 0.0))
+        r = c.get("/rooms/export.csv", headers=_auth_headers())
+        assert r.status_code == status.HTTP_200_OK
+        assert "text/csv" in r.headers["content-type"]
+        assert "attachment" in r.headers["content-disposition"]
+        lines = r.text.strip().splitlines()
+        assert lines[0] == "name,num_participants,max_participants,creation_time,empty_timeout,metadata"
+        assert len(lines) == 3  # header + 2 rooms
+
+    def test_export_filters_by_search(self, rooms_client):
+        c, mock_lk = rooms_client
+        mock_lk.list_rooms = AsyncMock(return_value=([
+            self._make_room("prod-room"),
+            self._make_room("dev-room"),
+        ], 0.0))
+        r = c.get("/rooms/export.csv?search=prod", headers=_auth_headers())
+        assert r.status_code == status.HTTP_200_OK
+        lines = r.text.strip().splitlines()
+        assert len(lines) == 2  # header + 1 matching room
+        assert "prod-room" in lines[1]
+
+    def test_export_empty_when_no_rooms(self, rooms_client):
+        c, mock_lk = rooms_client
+        mock_lk.list_rooms = AsyncMock(return_value=([], 0.0))
+        r = c.get("/rooms/export.csv", headers=_auth_headers())
+        assert r.status_code == status.HTTP_200_OK
+        lines = r.text.strip().splitlines()
+        assert len(lines) == 1  # header only
+
+
+class TestRoomsPartialRefresh:
+    def test_partial_returns_table_fragment(self, rooms_client):
+        c, mock_lk = rooms_client
+        r = c.get("/rooms?partial=1", headers=_auth_headers())
+        assert r.status_code == status.HTTP_200_OK
+        # Partial returns the table div, not the full page
+        assert 'id="rooms-list"' in r.text
+        assert "<html" not in r.text

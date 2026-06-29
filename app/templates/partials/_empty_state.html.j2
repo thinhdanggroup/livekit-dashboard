@@ -1,0 +1,20 @@
+{#
+  Reusable empty-state panel.
+
+  Parameters (pass via include with context or caller block):
+    message      (str, required)  — primary message shown to the user
+    icon         (str, optional)  — Bootstrap Icons name, e.g. "inbox"
+    action_url   (str, optional)  — URL for the optional CTA button
+    action_label (str, optional)  — label for the CTA button
+#}
+<div class="d-flex flex-column align-items-center justify-content-center py-5 text-muted">
+  {% if icon %}
+    <i class="bi bi-{{ icon }} fs-1 mb-3 opacity-50"></i>
+  {% endif %}
+  <p class="mb-0">{{ message }}</p>
+  {% if action_url and action_label %}
+    <a href="{{ action_url }}" class="btn btn-sm btn-outline-secondary mt-3">
+      {{ action_label }}
+    </a>
+  {% endif %}
+</div>

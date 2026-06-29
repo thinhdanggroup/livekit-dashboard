@@ -1,0 +1,60 @@
+{#
+  Health summary bar — top-of-page live status strip.
+  Parameters:
+    health_stats  (DashboardStats)  — from gather_dashboard_stats()
+    sip_enabled   (bool)            — whether SIP is configured
+#}
+{% if health_stats.error %}
+<div class="alert alert-danger d-flex align-items-center gap-2 mb-3" role="alert">
+    <i class="bi bi-exclamation-triangle-fill"></i>
+    <span>LiveKit API error: {{ health_stats.error }}</span>
+</div>
+{% endif %}
+
+<div class="stats-grid mb-4">
+    <div class="stat-card">
+        <div class="stat-label">Total Rooms</div>
+        <div class="stat-value">{{ health_stats.rooms_total }}</div>
+        <div class="stat-change">{{ health_stats.rooms_active }} active</div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-label">Participants</div>
+        <div class="stat-value info">{{ health_stats.participants_total }}</div>
+        <div class="stat-change">across all rooms</div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-label">Active Egress</div>
+        <div class="stat-value {% if health_stats.egress_active > 0 %}success{% endif %}">
+            {{ health_stats.egress_active }}
+        </div>
+        <div class="stat-change">recording / streaming jobs</div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-label">Active Ingress</div>
+        <div class="stat-value {% if health_stats.ingress_active > 0 %}success{% endif %}">
+            {{ health_stats.ingress_active }}
+        </div>
+        <div class="stat-change">live streams</div>
+    </div>
+
+    {% if sip_enabled %}
+    <div class="stat-card">
+        <div class="stat-label">SIP Trunks</div>
+        <div class="stat-value {% if health_stats.sip_trunks > 0 %}success{% endif %}">
+            {{ health_stats.sip_trunks }}
+        </div>
+        <div class="stat-change">telephony enabled</div>
+    </div>
+    {% endif %}
+
+    <div class="stat-card">
+        <div class="stat-label">API Latency</div>
+        <div class="stat-value {% if health_stats.api_latency_ms > 200 %}danger{% elif health_stats.api_latency_ms > 100 %}info{% endif %}">
+            {{ health_stats.api_latency_ms }}
+        </div>
+        <div class="stat-change">ms</div>
+    </div>
+</div>

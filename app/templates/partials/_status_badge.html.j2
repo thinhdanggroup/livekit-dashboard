@@ -1,0 +1,10 @@
+{#
+  Reusable status badge using Bootstrap contextual colours.
+
+  Requires the `status_color` Jinja2 filter (registered in app/main.py).
+
+  Parameters:
+    status  (str, required)  — raw status string, e.g. "active", "failed"
+    label   (str, optional)  — display label; defaults to status value
+#}
+<span class="badge bg-{{ status | status_color }}">{{ label if label else status }}</span>

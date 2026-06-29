@@ -1,7 +1,9 @@
 """Room management routes"""
 
+import csv
+import io
 from fastapi import APIRouter, Depends, Request, Form
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response, StreamingResponse
 from typing import Optional
 
 from app.services.livekit import LiveKitClient, get_livekit_client
@@ -42,14 +44,14 @@ async def rooms_index(
         "csrf_token": get_csrf_token(request),
     }
 
-    # Return partial template for HTMX polling
+    # Return partial table for HTMX polling
     if partial:
-        return request.app.state.templates.TemplateResponse(request, 
-            "rooms/index.html.j2",
+        return request.app.state.templates.TemplateResponse(request,
+            "rooms/_rooms_table.html.j2",
             template_data,
         )
 
-    return request.app.state.templates.TemplateResponse(request, 
+    return request.app.state.templates.TemplateResponse(request,
         "rooms/index.html.j2",
         template_data,
     )
@@ -100,6 +102,42 @@ async def create_room(
         # In a real app, you'd want to show this error to the user
         print(f"Error creating room: {e}")
         return RedirectResponse(url="/rooms", status_code=303)
+
+
+@router.get("/rooms/export.csv", dependencies=[Depends(requires_admin)])
+async def export_rooms_csv(
+    request: Request,
+    search: Optional[str] = None,
+    lk: LiveKitClient = Depends(get_livekit_client),
+):
+    """Export current rooms list as CSV, respecting search filter"""
+    try:
+        rooms, _ = await lk.list_rooms()
+    except Exception:
+        rooms = []
+
+    if search:
+        rooms = [r for r in rooms if search.lower() in r.name.lower()]
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["name", "num_participants", "max_participants", "creation_time", "empty_timeout", "metadata"])
+    for room in rooms:
+        writer.writerow([
+            room.name,
+            room.num_participants,
+            room.max_participants,
+            room.creation_time,
+            room.empty_timeout,
+            room.metadata or "",
+        ])
+
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=rooms.csv"},
+    )
 
 
 @router.get(

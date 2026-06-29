@@ -173,6 +173,40 @@ main {
     font-size: 0.875rem;
 }
 
+/* Top-bar search */
+.top-bar-search {
+    flex: 0 0 auto;
+    width: 260px;
+    margin: 0 1rem;
+}
+
+.top-bar-search .form-control {
+    background-color: var(--bg-primary);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+.top-bar-search .form-control:focus {
+    box-shadow: 0 0 0 0.2rem rgba(99, 102, 241, 0.25);
+    border-color: var(--accent-primary, #6366f1);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.top-bar-search .input-group-text {
+    border-color: var(--border-color);
+    color: var(--text-secondary);
+}
+
+.top-bar-search .kbd-hint kbd {
+    font-size: 0.65rem;
+    padding: 0.1rem 0.3rem;
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    background: transparent;
+    color: var(--text-secondary);
+}
+
 /* Cards */
 .card {
     background-color: var(--bg-card);

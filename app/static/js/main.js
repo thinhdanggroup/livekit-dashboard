@@ -219,6 +219,18 @@ function handleFormSubmit(formElement, onSuccess) {
     });
 }
 
+// Ctrl/Cmd+K global search shortcut
+document.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        const input = document.getElementById('global-search-input');
+        if (input) {
+            input.focus();
+            input.select();
+        }
+    }
+});
+
 // Export functions for use in templates
 window.dashboardUtils = {
     showNotification,
