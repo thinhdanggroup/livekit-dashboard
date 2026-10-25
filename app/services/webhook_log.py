@@ -37,7 +37,8 @@ def log_delivery(
     status: int | None,
     error: str | None,
 ) -> str:
-    """Append one delivery entry and return its generated id."""
+    """Append one delivery entry and return its generated id. Silently swallows
+    I/O errors so a log failure never breaks the webhook action it records."""
     entry_id = str(uuid.uuid4())[:8]
     entry = {
         "id": entry_id,
@@ -48,9 +49,12 @@ def log_delivery(
         "status": status,
         "error": error,
     }
-    entries = _load()
-    entries.append(entry)
-    _save(entries)
+    try:
+        entries = _load()
+        entries.append(entry)
+        _save(entries)
+    except Exception:
+        pass
     return entry_id
 
 

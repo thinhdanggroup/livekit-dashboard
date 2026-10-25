@@ -27,6 +27,12 @@ def test_get_entry_found_and_missing(tmp_path):
         assert wl.get_entry("doesnotexist") is None
 
 
+def test_log_delivery_never_raises(tmp_path):
+    with patch.object(wl, "_STORE_PATH", "/nonexistent/path/wh.json"):
+        entry_id = wl.log_delivery("alert", "http://a", "{}", None, "timeout")
+    assert isinstance(entry_id, str) and len(entry_id) == 8
+
+
 def test_log_trims_to_max_entries(tmp_path):
     with patch.object(wl, "_STORE_PATH", str(tmp_path / "wh.json")), patch.object(wl, "MAX_ENTRIES", 3):
         for i in range(5):
