@@ -20,11 +20,13 @@ Schema: {"ips": ["1.2.3.4", ...]}
 import json
 import logging
 import os
+import threading
 
 
 logger = logging.getLogger(__name__)
 
 _STORE_PATH = os.environ.get("IP_ALLOWLIST_FILE", "/tmp/ip_allowlist.json")
+_LOCK = threading.Lock()
 
 
 def _load() -> dict:
@@ -53,8 +55,14 @@ def _load() -> dict:
 
 
 def _save(cfg: dict) -> None:
-    with open(_STORE_PATH, "w") as f:
+    """Write the store atomically: write to a temp file in the same
+    directory, then os.replace() it into place, so a concurrent reader
+    never sees a partially-written file."""
+    directory = os.path.dirname(_STORE_PATH) or "."
+    tmp_path = os.path.join(directory, f".{os.path.basename(_STORE_PATH)}.tmp-{os.getpid()}-{threading.get_ident()}")
+    with open(tmp_path, "w") as f:
         json.dump(cfg, f, indent=2)
+    os.replace(tmp_path, _STORE_PATH)
 
 
 def _parse_ips(raw: str) -> list[str]:
@@ -95,14 +103,15 @@ def save_allowlist(raw: str, requester_ip: str) -> list[str]:
         if ips and requester_ip not in ips:
             ips.append(requester_ip)
 
-    cfg = _load()
-    if not isinstance(cfg, dict):
-        # Self-heal a malformed store (e.g. a bare `[]` file) instead of
-        # crashing on cfg["ips"] = ... below; a save is an explicit admin
-        # remediation action, so rewriting it to the expected shape is safe.
-        cfg = {}
-    cfg["ips"] = ips
-    _save(cfg)
+    with _LOCK:
+        cfg = _load()
+        if not isinstance(cfg, dict):
+            # Self-heal a malformed store (e.g. a bare `[]` file) instead of
+            # crashing on cfg["ips"] = ... below; a save is an explicit admin
+            # remediation action, so rewriting it to the expected shape is safe.
+            cfg = {}
+        cfg["ips"] = ips
+        _save(cfg)
     return ips
 
 
