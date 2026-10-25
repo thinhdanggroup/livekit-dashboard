@@ -41,6 +41,7 @@ async def poll_once(lk: LiveKitClient) -> None:
     """Fetch live rooms, update ghost tracking, and record lifecycle events
     for each room's participant state. Any failure to list rooms propagates
     to the caller (run_poller_loop), which already wraps the whole tick."""
+    now = datetime.now(timezone.utc)
     rooms, _ = await lk.list_rooms()
 
     snapshot = [
@@ -79,6 +80,7 @@ async def poll_once(lk: LiveKitClient) -> None:
                 )
 
             _last_known[room.name] = new_state
+            room_history.mark_seen(room.name, now)
         except Exception:
             logger.warning(
                 "room_poller: failed to poll room %s; skipping it this tick",
@@ -95,24 +97,26 @@ async def poll_once(lk: LiveKitClient) -> None:
         if name not in current_names:
             del _last_known[name]
 
-    room_history.prune_old(datetime.now(timezone.utc))
+    room_history.prune_old(now)
 
 
 async def run_poller_loop(interval_seconds: int = 5) -> None:
     """Tick poll_once() forever, swallowing any error so one bad tick never
     kills the background task."""
     while True:
-        lk = LiveKitClient()
+        lk = None
         try:
+            lk = LiveKitClient()
             await poll_once(lk)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("room poller tick failed: %s", exc, exc_info=True)
         finally:
             # LiveKitClient lazily opens an aiohttp session on first use; a
             # fresh client is created every tick, so it must be closed every
             # tick too or each 5-second poll leaks one.
-            try:
-                await lk.close()
-            except Exception:
-                pass
+            if lk is not None:
+                try:
+                    await lk.close()
+                except Exception:
+                    pass
         await asyncio.sleep(interval_seconds)

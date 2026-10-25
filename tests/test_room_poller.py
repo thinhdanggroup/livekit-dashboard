@@ -1,7 +1,7 @@
 """Tests for the background room lifecycle poller."""
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -134,6 +134,32 @@ async def test_poll_once_treats_reappearing_room_as_fresh_without_ended_event(tm
 
     created_events = [e for e in rh.get_history("r1") if e["kind"] == "room_created"]
     assert len(created_events) == 2
+
+
+async def test_poll_once_marks_room_seen_even_without_diff_event(tmp_path, monkeypatch):
+    """A quiet, live room with no participant changes between ticks must
+    still have its last_seen advanced every tick, or its history gets
+    pruned out from under it while it's still live."""
+    monkeypatch.setattr(rh, "_STORE_PATH", str(tmp_path / "h.json"))
+    monkeypatch.setattr(gr, "_STORE_PATH", str(tmp_path / "g.json"))
+
+    lk = MagicMock()
+    lk.list_rooms = AsyncMock(return_value=([_room("r1")], 0.01))
+    lk.list_participants = AsyncMock(return_value=[])
+
+    with patch.object(rh, "mark_seen") as mock_mark_seen:
+        # First tick: room_created fires (first sighting).
+        await rp.poll_once(lk)
+        mock_mark_seen.assert_called_once()
+        assert mock_mark_seen.call_args[0][0] == "r1"
+
+        mock_mark_seen.reset_mock()
+
+        # Second tick: nothing changes (no participants, no diff events),
+        # but the room is still live -- mark_seen must still be called.
+        await rp.poll_once(lk)
+        mock_mark_seen.assert_called_once()
+        assert mock_mark_seen.call_args[0][0] == "r1"
 
 
 async def test_run_poller_loop_survives_list_rooms_failure(monkeypatch):

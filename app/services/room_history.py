@@ -1,12 +1,17 @@
 """File-backed per-room lifecycle event history, plus the pure state-diff
 function used to derive those events from successive room-state snapshots.
 
-Shape on disk: {room_name: [{"ts": iso, "kind": str, "label": str,
-"identity": str}, ...]}, events chronological (oldest first) within each
-room. Retention is governed by TTL_MINUTES (imported from ghost_rooms, not
-redeclared here) so a room's history and its ghost-row visibility can never
-drift out of sync: prune_old drops any room whose last-recorded event is
-older than that same TTL.
+Shape on disk: {room_name: {"events": [{"ts": iso, "kind": str, "label":
+str, "identity": str}, ...], "last_seen": iso}}, events chronological
+(oldest first) within each room. "last_seen" tracks the last poller tick
+that observed the room as live -- NOT the timestamp of the last event --
+because a quiet, live room (no joins/leaves/mutes) can otherwise go
+TTL_MINUTES without a single event and have its entire history pruned while
+still live. The poller updates last_seen every tick via mark_seen(), whether
+or not a diff event fired that tick. Retention is governed by TTL_MINUTES
+(imported from ghost_rooms, not redeclared here) so a room's history and its
+ghost-row visibility can never drift out of sync: prune_old drops any room
+whose last_seen predates that same TTL.
 """
 
 import json
@@ -37,10 +42,18 @@ def _minutes_since(ts: str, now: datetime) -> int:
     return int((now - datetime.fromisoformat(ts)).total_seconds() // 60)
 
 
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
 def append_event(room_name: str, kind: str, label: str, identity: str = "") -> None:
-    """Append one lifecycle event for room_name, timestamped now."""
+    """Append one lifecycle event for room_name, timestamped now.
+
+    Appending an event always implies the room was just observed live, so
+    this also bumps last_seen to now (same as mark_seen would)."""
     state = _load()
-    events = state.get(room_name, [])
+    entry = state.get(room_name, {"events": [], "last_seen": _now_iso()})
+    events = entry.get("events", [])
     events.append(
         {
             "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -49,7 +62,22 @@ def append_event(room_name: str, kind: str, label: str, identity: str = "") -> N
             "identity": identity,
         }
     )
-    state[room_name] = events[-MAX_EVENTS_PER_ROOM:]
+    entry["events"] = events[-MAX_EVENTS_PER_ROOM:]
+    entry["last_seen"] = _now_iso()
+    state[room_name] = entry
+    _save(state)
+
+
+def mark_seen(room_name: str, now: datetime) -> None:
+    """Record that room_name was observed live at `now`, without appending
+    an event. Called every poller tick for every currently-live room so a
+    quiet room's retention window keeps advancing even when nothing
+    happens. Creates the room's entry (with empty events) if it doesn't
+    exist yet."""
+    state = _load()
+    entry = state.get(room_name, {"events": []})
+    entry["last_seen"] = now.isoformat(timespec="seconds")
+    state[room_name] = entry
     _save(state)
 
 
@@ -57,16 +85,16 @@ def get_history(room_name: str) -> list[dict]:
     """Return room_name's events, chronological (oldest first); [] if the
     room is unknown or its history has already been pruned."""
     state = _load()
-    return state.get(room_name, [])
+    return state.get(room_name, {}).get("events", [])
 
 
 def prune_old(now: datetime) -> None:
-    """Drop any room whose last-recorded event predates TTL_MINUTES."""
+    """Drop any room whose last_seen predates TTL_MINUTES."""
     state = _load()
     state = {
-        room_name: events
-        for room_name, events in state.items()
-        if events and _minutes_since(events[-1]["ts"], now) < TTL_MINUTES
+        room_name: entry
+        for room_name, entry in state.items()
+        if entry.get("last_seen") and _minutes_since(entry["last_seen"], now) < TTL_MINUTES
     }
     _save(state)
 
