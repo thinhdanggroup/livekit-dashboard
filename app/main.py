@@ -20,6 +20,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.routes import overview, rooms, egress, ingress, sip, settings, sandbox, auth, agents, homer, search, views, alerts, audit, diagnostics, events
 from app.security.csrf import get_csrf_token
+from app.services import ip_allowlist
 from app.utils.formatters import format_duration, format_pct, status_color, format_number
 
 
@@ -68,6 +69,23 @@ app.add_middleware(
 async def ensure_csrf_token(request: Request, call_next):
     """Ensure every request has a CSRF token available for templates."""
     get_csrf_token(request)
+    return await call_next(request)
+
+
+@app.middleware("http")
+async def enforce_ip_allowlist(request: Request, call_next):
+    """Block requests from IPs not present on a configured allowlist.
+
+    An empty/unconfigured allowlist means "allow all" (see
+    app.services.ip_allowlist), so this is a no-op until an operator
+    explicitly configures one via Settings.
+    """
+    if request.url.path == "/health":
+        return await call_next(request)
+    client_ip = request.client.host if request.client else "unknown"
+    if not ip_allowlist.is_allowed(client_ip):
+        from fastapi.responses import Response as _Resp
+        return _Resp("Access denied.", status_code=403)
     return await call_next(request)
 
 

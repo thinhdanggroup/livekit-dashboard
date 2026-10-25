@@ -168,5 +168,90 @@
     </div>
 </div>
 
+<!-- IP Allowlist & Failed Logins -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-shield-lock"></i> Access Security</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Failed Logins by IP</h6>
+                        {% if failed_login_counts %}
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>IP</th>
+                                    <th>Count</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for ip, count in failed_login_counts.items() %}
+                                <tr>
+                                    <td><code>{{ ip }}</code></td>
+                                    <td>{{ count }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <p class="text-muted">No failed login attempts recorded.</p>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Recent Failed Logins</h6>
+                        {% if failed_logins %}
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>IP</th>
+                                    <th>Username</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for entry in failed_logins %}
+                                <tr>
+                                    <td>{{ entry.ts }}</td>
+                                    <td><code>{{ entry.ip }}</code></td>
+                                    <td>{{ entry.username }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <p class="text-muted">No failed login attempts recorded.</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <hr>
+
+                <h6>IP Allowlist</h6>
+                {% if not is_readonly() %}
+                <form method="post" action="/settings/security">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <div class="mb-2">
+                        <label for="ip_allowlist" class="form-label">Allowed IPs (comma-separated)</label>
+                        <input type="text" class="form-control" id="ip_allowlist" name="ip_allowlist"
+                               value="{{ ip_allowlist_raw }}" placeholder="e.g. 203.0.113.5, 198.51.100.9">
+                        <div class="form-text">
+                            Leave blank to allow all IPs. Your current IP is always kept on the list when you save a non-empty allowlist.
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="bi bi-save"></i> Save Allowlist
+                    </button>
+                </form>
+                {% else %}
+                <p class="text-muted mb-0"><code>{{ ip_allowlist_raw or "(allow all)" }}</code></p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 

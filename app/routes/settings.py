@@ -1,12 +1,14 @@
 """Settings and configuration routes"""
 
 import os
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, Form, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.services.livekit import LiveKitClient, get_livekit_client
+from app.services import security_log
+from app.services import ip_allowlist as ip_allowlist_service
 from app.security.basic_auth import requires_admin, get_current_user
-from app.security.csrf import get_csrf_token
+from app.security.csrf import get_csrf_token, verify_csrf_token
 
 
 router = APIRouter()
@@ -45,12 +47,28 @@ async def settings_index(
         "api_secret_masked": _mask_secret(api_secret),
     }
 
-    return request.app.state.templates.TemplateResponse(request, 
+    return request.app.state.templates.TemplateResponse(request,
         "settings.html.j2",
         {
             "request": request,
             "config": config,
             "current_user": current_user,
             "csrf_token": get_csrf_token(request),
+            "failed_logins": security_log.list_failed_logins(limit=20),
+            "failed_login_counts": security_log.count_by_ip(),
+            "ip_allowlist_raw": ", ".join(ip_allowlist_service.get_allowlist()),
         },
     )
+
+
+@router.post("/settings/security", dependencies=[Depends(requires_admin)])
+async def save_security_settings(
+    request: Request,
+    csrf_token: str = Form(...),
+    ip_allowlist: str = Form(""),
+):
+    """Update the IP allowlist from the Settings page."""
+    await verify_csrf_token(request)
+    requester_ip = request.client.host if request.client else "unknown"
+    ip_allowlist_service.save_allowlist(ip_allowlist, requester_ip=requester_ip)
+    return RedirectResponse(url="/settings", status_code=303)
