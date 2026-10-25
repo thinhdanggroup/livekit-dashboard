@@ -3,6 +3,8 @@ LiveKit Dashboard - Main Application
 Stateless SSR dashboard for LiveKit server management
 """
 
+import asyncio
+import contextlib
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -21,7 +23,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.routes import overview, rooms, egress, ingress, sip, settings, sandbox, auth, agents, homer, search, views, alerts, audit, diagnostics, events, analytics
 from app.security.csrf import get_csrf_token
-from app.services import ip_allowlist
+from app.services import ip_allowlist, report_rules
 from app.utils.formatters import format_duration, format_pct, status_color, format_number
 
 logger = logging.getLogger(__name__)
@@ -45,9 +47,14 @@ async def lifespan(app: FastAPI):
     else:
         print("✅ All required environment variables are set")
 
+    scheduler_task = asyncio.create_task(report_rules.run_scheduler_loop())
+
     yield
 
     # Shutdown
+    scheduler_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await scheduler_task
     print("👋 LiveKit Dashboard shutting down...")
 
 

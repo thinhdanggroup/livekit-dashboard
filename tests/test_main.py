@@ -11,6 +11,17 @@ def test_health_check(client):
     assert response.text == "OK"
 
 
+def test_app_starts_and_stops_with_scheduler_task(client):
+    """The scheduler background task must not prevent clean startup/shutdown.
+
+    The `client` fixture already enters/exits the TestClient context manager,
+    which runs the lifespan startup/shutdown; this just needs to not hang or
+    raise now that a background task is involved.
+    """
+    resp = client.get("/health")
+    assert resp.status_code == 200
+
+
 def test_overview_requires_auth(client):
     """Test that overview page requires authentication"""
     response = client.get("/")
