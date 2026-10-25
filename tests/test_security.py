@@ -47,3 +47,23 @@ def test_csrf_token_uniqueness():
     token2 = generate_csrf_token()
     assert token1 != token2
 
+
+def test_requires_admin_logs_failed_attempt(client, tmp_path, monkeypatch):
+    """A failed login attempt via requires_admin is recorded in the security log."""
+    import app.services.security_log as sl
+    monkeypatch.setattr(sl, "_STORE_PATH", str(tmp_path / "s.json"))
+    import base64
+    bad = base64.b64encode(b"wrong:wrong").decode()
+    client.get("/rooms", headers={"Authorization": f"Basic {bad}"})
+    entries = sl.list_failed_logins()
+    assert len(entries) == 1
+    assert entries[0]["username"] == "wrong"
+
+
+def test_requires_admin_does_not_log_success(client, auth_headers, tmp_path, monkeypatch):
+    """A successful login via requires_admin does NOT get logged."""
+    import app.services.security_log as sl
+    monkeypatch.setattr(sl, "_STORE_PATH", str(tmp_path / "s.json"))
+    client.get("/rooms", headers=auth_headers)
+    assert sl.list_failed_logins() == []
+

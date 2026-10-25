@@ -7,6 +7,7 @@ from typing import Optional
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
+from app.services import security_log
 
 security = HTTPBasic()
 
@@ -27,9 +28,12 @@ def verify_credentials(credentials: HTTPBasicCredentials) -> bool:
     return username_correct and password_correct
 
 
-def requires_admin(credentials: HTTPBasicCredentials = Depends(security)) -> str:
+def requires_admin(request: Request, credentials: HTTPBasicCredentials = Depends(security)) -> str:
     """Dependency that requires admin authentication"""
     if not verify_credentials(credentials):
+        security_log.log_failed_login(
+            request.client.host if request.client else "unknown", credentials.username
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
