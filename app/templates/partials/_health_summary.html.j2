@@ -1,8 +1,9 @@
 {#
   Health summary bar — top-of-page live status strip.
   Parameters:
-    health_stats  (DashboardStats)  — from gather_dashboard_stats()
-    sip_enabled   (global callable)  — whether SIP is configured
+    health_stats    (DashboardStats)  — from gather_dashboard_stats()
+    sip_enabled     (global callable)  — whether SIP is configured
+    health_summary  (HealthSummary)   — from app.services.health.evaluate(health_stats)
 #}
 {% if health_stats.error %}
 <div class="alert alert-danger d-flex align-items-center gap-2 mb-3" role="alert">
@@ -10,6 +11,17 @@
     <span>LiveKit API error: {{ health_stats.error }}</span>
 </div>
 {% endif %}
+
+<div class="alert alert-{{ 'danger' if health_summary.severity == 'down' else 'warning' if health_summary.severity == 'degraded' else 'success' }} mb-3" role="alert">
+    <div>{{ health_summary.headline }}</div>
+    {% if health_summary.severity != 'down' %}
+    <ul class="mb-0">
+        {% for detail in health_summary.details %}
+        <li>{{ detail }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+</div>
 
 <div class="stats-grid mb-4">
     <div class="stat-card">

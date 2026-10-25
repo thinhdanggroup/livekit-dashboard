@@ -9,6 +9,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from app.services.livekit import LiveKitClient, get_livekit_client
 from app.services.dashboard import gather_dashboard_stats
 from app.services import anomaly
+from app.services import health
 from app.security.basic_auth import requires_admin, get_current_user
 from app.utils.filters import parse_filters
 
@@ -89,6 +90,7 @@ async def overview(
 
     current_user = get_current_user(request)
     observations = anomaly.detect(health_stats)
+    health_summary = health.evaluate(health_stats)
 
     return request.app.state.templates.TemplateResponse(
         request,
@@ -106,5 +108,6 @@ async def overview(
             "current_user": current_user,
             "filters": filters,
             "observations": observations,
+            "health_summary": health_summary,
         },
     )
