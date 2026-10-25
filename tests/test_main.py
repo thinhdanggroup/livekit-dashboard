@@ -22,6 +22,48 @@ def test_app_starts_and_stops_with_scheduler_task(client):
     assert resp.status_code == 200
 
 
+def test_room_poller_task_starts_and_is_cancelled_on_shutdown(monkeypatch):
+    """lifespan must actually start room_poller.run_poller_loop() as one of
+    its background tasks, and cancel it cleanly on shutdown.
+
+    A test that only hits /health (like the one above) would stay green even
+    if someone silently dropped room_poller.run_poller_loop() from main.py's
+    background_tasks list -- nothing would be exercising that task at all.
+    This test proves both (a) the poller coroutine actually starts, and (b)
+    it receives CancelledError (rather than being abandoned/leaked) when the
+    app shuts down, by substituting a fake loop that records both events.
+    """
+    import asyncio
+
+    from fastapi.testclient import TestClient
+
+    import app.services.room_poller as room_poller
+
+    state = {"started": False, "cancelled": False}
+
+    async def fake_run_poller_loop(interval_seconds: int = 5):
+        state["started"] = True
+        try:
+            await asyncio.sleep(3600)
+        except asyncio.CancelledError:
+            state["cancelled"] = True
+            raise
+
+    monkeypatch.setattr(room_poller, "run_poller_loop", fake_run_poller_loop)
+
+    from app.main import app as fastapi_app
+
+    with TestClient(fastapi_app) as test_client:
+        resp = test_client.get("/health")
+        assert resp.status_code == 200
+        assert state["started"] is True
+
+    # By the time the TestClient context manager exits, lifespan shutdown
+    # (task.cancel() + asyncio.gather(..., return_exceptions=True)) has
+    # already completed, so the fake loop's except-block has run.
+    assert state["cancelled"] is True
+
+
 def test_overview_requires_auth(client):
     """Test that overview page requires authentication"""
     response = client.get("/")
