@@ -3,6 +3,7 @@
 import json
 import pytest
 from dataclasses import dataclass
+from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
 
 
@@ -129,3 +130,18 @@ def test_fire_webhook_force_bypasses_cooldown(tmp_path):
 
     assert result is not None
     assert result["status"] == 204
+
+
+def test_fire_webhook_logs_delivery(tmp_path, monkeypatch):
+    import app.services.notifications as notif
+    import app.services.webhook_log as wl
+    monkeypatch.setattr(notif, "_STORE_PATH", str(tmp_path / "n.json"))
+    monkeypatch.setattr(wl, "_STORE_PATH", str(tmp_path / "wh.json"))
+    notif.save_config(webhook_url="http://example.com/hook")
+    rule = SimpleNamespace(id="r1", name="x", metric="rooms_total", operator=">", threshold=1, severity="warning")
+    with patch("app.utils.http.post_json", return_value={"status": 200, "body": "", "error": None}):
+        notif.fire_webhook([rule], force=True)
+    entries = wl.list_entries()
+    assert len(entries) == 1
+    assert entries[0]["source"] == "alert"
+    assert entries[0]["status"] == 200

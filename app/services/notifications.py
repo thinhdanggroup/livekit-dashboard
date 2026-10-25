@@ -10,10 +10,11 @@ Schema: {"webhook_url": "...", "cooldown_minutes": 10, "last_fired": "ISO"}
 
 import json
 import os
-import urllib.request
-import urllib.error
 from datetime import datetime, timezone, timedelta
 from typing import Optional
+
+import app.utils.http as http_util
+from app.services import webhook_log
 
 
 _STORE_PATH = os.environ.get("NOTIFICATIONS_FILE", "/tmp/notifications_config.json")
@@ -98,20 +99,11 @@ def fire_webhook(triggered_rules: list, force: bool = False) -> Optional[dict]:
         ],
     }).encode()
 
-    result: dict = {}
-    try:
-        req = urllib.request.Request(
-            url,
-            data=payload,
-            headers={"Content-Type": "application/json", "User-Agent": "livekit-dashboard/1.0"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            result = {"status": resp.status, "error": None}
-    except urllib.error.HTTPError as e:
-        result = {"status": e.code, "error": e.reason}
-    except Exception as exc:
-        result = {"status": None, "error": str(exc)}
+    payload_str = payload.decode()
+    post_result = http_util.post_json(url, payload_str)
+    result = {"status": post_result.get("status"), "error": post_result.get("error")}
+
+    webhook_log.log_delivery("alert", url, payload_str, result.get("status"), result.get("error"))
 
     cfg["last_fired"] = _now().isoformat(timespec="seconds")
     _save(cfg)
