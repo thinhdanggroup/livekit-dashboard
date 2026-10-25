@@ -1,0 +1,146 @@
+{% extends "base.html.j2" %}
+
+{% block title %}Summary: {{ room_name }} - LiveKit Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-3">
+    <div class="col-md-8">
+        <h1 class="d-flex align-items-center gap-2">
+            <i class="bi bi-journal-text"></i>
+            <span>Session Summary: {{ room_name }}</span>
+        </h1>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/">Home</a></li>
+                <li class="breadcrumb-item"><a href="/rooms">Rooms</a></li>
+                <li class="breadcrumb-item active">{{ room_name }} summary</li>
+            </ol>
+        </nav>
+    </div>
+    <div class="col-md-4 text-end">
+        <a href="/rooms/{{ room_name }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Room
+        </a>
+    </div>
+</div>
+
+{% if not history %}
+<div class="alert alert-info">
+    <i class="bi bi-info-circle"></i>
+    No data available for this room. Its lifecycle history may have already expired, or no events were ever recorded for it.
+</div>
+{% endif %}
+
+<!-- Notes & Tags -->
+{% if room_notes.tags or room_notes.note %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-tag"></i> Notes &amp; Tags</h5>
+            </div>
+            <div class="card-body">
+                {% if room_notes.tags %}
+                <div class="mb-2">
+                    {% for tag in room_notes.tags %}
+                    <span class="badge bg-secondary me-1">{{ tag }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% if room_notes.note %}
+                <p class="mb-0 text-muted" style="font-size:.9rem;">{{ room_notes.note }}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Timeline -->
+{% if history %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-clock-history"></i> Session Timeline</h5>
+            </div>
+            <div class="card-body">
+                <div class="timeline">
+                    {% for event in history %}
+                    <div class="d-flex gap-3 mb-3 align-items-start">
+                        <div class="flex-shrink-0 text-center" style="width:32px;">
+                            <span class="badge bg-secondary rounded-circle p-2">
+                                <i class="bi bi-dot"></i>
+                            </span>
+                        </div>
+                        <div>
+                            <div class="fw-semibold" style="font-size:.9rem;">{{ event.label }}</div>
+                            {% if event.ts %}
+                            <small class="text-muted">{{ event.ts }}</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Recordings / Egress -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-record-circle"></i> Recordings</h5>
+            </div>
+            <div class="card-body">
+                {% if egress_jobs is none %}
+                <div class="alert alert-warning mb-0">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    Recording info unavailable right now.
+                </div>
+                {% elif egress_jobs %}
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover table-striped">
+                        <thead>
+                            <tr>
+                                <th>Egress ID</th>
+                                <th>Status</th>
+                                <th>Started</th>
+                                <th>Ended</th>
+                                <th>File</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for job in egress_jobs %}
+                            <tr>
+                                <td><code>{{ job.egress_id }}</code></td>
+                                <td><span class="badge bg-secondary">{{ job.status }}</span></td>
+                                <td><small class="text-muted">{{ job.started_at or '-' }}</small></td>
+                                <td><small class="text-muted">{{ job.ended_at or '-' }}</small></td>
+                                <td>
+                                    {% if job.file_results %}
+                                        {% for file in job.file_results %}
+                                        <div><small>{{ file.filename }}</small></div>
+                                        {% endfor %}
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info mb-0">
+                    <i class="bi bi-info-circle"></i> No recordings for this room.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

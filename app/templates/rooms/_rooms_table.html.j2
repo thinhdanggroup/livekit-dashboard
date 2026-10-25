@@ -69,7 +69,7 @@
                                 {% endif %}
                             </div>
                             {% else %}
-                            <span class="text-muted">Ended {{ room._closed_minutes_ago }}m ago</span>
+                            <a href="/rooms/{{ room.name }}/summary" class="text-muted">Ended {{ room._closed_minutes_ago }}m ago &mdash; View Summary</a>
                             {% endif %}
                         </td>
                     </tr>

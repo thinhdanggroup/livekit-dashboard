@@ -483,3 +483,77 @@ class TestRoomAnnotationsService:
         assert "room_created" in kinds
         assert "participant_joined" in kinds
         assert "track_published" in kinds
+
+
+class TestRoomSummary:
+    def test_summary_requires_auth(self, client):
+        resp = client.get("/rooms/r1/summary", follow_redirects=False)
+        assert resp.status_code == status.HTTP_401_UNAUTHORIZED
+
+    def test_summary_shows_history_and_notes(self, client, auth_headers):
+        import app.services.room_history as rh
+        import app.services.room_annotations as ann
+
+        rh.append_event("r1", "room_created", "Room created")
+        rh.append_event("r1", "participant_joined", "alice joined", identity="alice")
+        ann.set_annotations("r1", "VIP session, handle with care", ["prod", "VIP"])
+
+        resp = client.get("/rooms/r1/summary", headers=auth_headers)
+        assert resp.status_code == status.HTTP_200_OK
+        assert b"alice joined" in resp.content
+        assert b"VIP session, handle with care" in resp.content
+        assert b"prod" in resp.content
+
+    def test_summary_escapes_untrusted_label_and_note_text(self, client, auth_headers):
+        """History labels and notes may contain operator- or user-supplied
+        text (identities, note bodies), so the summary page must escape them
+        rather than render with |safe."""
+        import app.services.room_history as rh
+        import app.services.room_annotations as ann
+
+        rh.append_event("r1", "participant_joined", "<script>evil()</script> joined")
+        ann.set_annotations("r1", "<img src=x onerror=alert(1)>", [])
+
+        resp = client.get("/rooms/r1/summary", headers=auth_headers)
+        assert resp.status_code == status.HTTP_200_OK
+        assert b"<script>evil()</script>" not in resp.content
+        assert b"&lt;script&gt;" in resp.content
+        assert b"<img src=x onerror=alert(1)>" not in resp.content
+
+    def test_summary_unknown_room_shows_no_data_state(self, client, auth_headers):
+        resp = client.get("/rooms/never-seen/summary", headers=auth_headers)
+        assert resp.status_code == status.HTTP_200_OK
+        assert b"No data" in resp.content or b"no history" in resp.content.lower()
+
+    def test_summary_degrades_when_egress_lookup_fails(self, rooms_client, auth_headers):
+        c, mock_lk = rooms_client
+        import app.services.room_history as rh
+
+        rh.append_event("r2", "room_created", "Room created")
+        mock_lk.list_egress = AsyncMock(side_effect=Exception("egress backend unreachable"))
+
+        resp = c.get("/rooms/r2/summary", headers=auth_headers)
+        assert resp.status_code == status.HTTP_200_OK
+        assert b"unavailable" in resp.content.lower()
+
+    def test_summary_shows_no_recordings_when_egress_empty(self, rooms_client, auth_headers):
+        c, mock_lk = rooms_client
+        import app.services.room_history as rh
+
+        rh.append_event("r3", "room_created", "Room created")
+        mock_lk.list_egress = AsyncMock(return_value=[])
+
+        resp = c.get("/rooms/r3/summary", headers=auth_headers)
+        assert resp.status_code == status.HTTP_200_OK
+        assert b"No recordings" in resp.content
+
+    def test_summary_has_no_mutating_controls(self, client, auth_headers):
+        """This is a read-only report page: no mutating forms (the global
+        GET search form in the base layout is fine; no POST forms belong
+        here)."""
+        import app.services.room_history as rh
+
+        rh.append_event("r1", "room_created", "Room created")
+        resp = client.get("/rooms/r1/summary", headers=auth_headers)
+        assert resp.status_code == status.HTTP_200_OK
+        assert b'method="post"' not in resp.content

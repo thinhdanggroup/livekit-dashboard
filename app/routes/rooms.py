@@ -11,6 +11,7 @@ from app.services.livekit import LiveKitClient, get_livekit_client
 from app.services import room_annotations as annotations
 from app.services import audit_log
 from app.services import ghost_rooms
+from app.services import room_history
 from app.security.basic_auth import requires_admin, get_current_user
 from app.security.csrf import get_csrf_token, verify_csrf_token
 from app.utils.filters import parse_filters
@@ -261,6 +262,45 @@ async def room_detail(
 
     return request.app.state.templates.TemplateResponse(request,
         "rooms/detail.html.j2",
+        template_data,
+    )
+
+
+@router.get(
+    "/rooms/{room_name}/summary", response_class=HTMLResponse, dependencies=[Depends(requires_admin)]
+)
+async def room_summary(
+    request: Request,
+    room_name: str,
+    lk: LiveKitClient = Depends(get_livekit_client),
+):
+    """Read-only session summary for a live or recently-ended room: lifecycle
+    history, operator notes/tags, and any recordings. Egress lookups talk to
+    an external backend, so a failure there degrades to an "unavailable"
+    message instead of taking down the whole page."""
+    history = room_history.get_history(room_name)
+    room_notes = annotations.get_annotations(room_name)
+
+    try:
+        egress_jobs = await lk.list_egress(room_name=room_name, active=False)
+    except Exception as e:
+        logger.warning("Error listing egress for %s: %s", room_name, e)
+        egress_jobs = None
+
+    current_user = get_current_user(request)
+
+    template_data = {
+        "request": request,
+        "room_name": room_name,
+        "history": history,
+        "room_notes": room_notes,
+        "egress_jobs": egress_jobs,
+        "current_user": current_user,
+        "csrf_token": get_csrf_token(request),
+    }
+
+    return request.app.state.templates.TemplateResponse(request,
+        "rooms/summary.html.j2",
         template_data,
     )
 

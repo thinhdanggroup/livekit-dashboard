@@ -21,6 +21,9 @@
         </nav>
     </div>
     <div class="col-md-6 text-end d-flex gap-2 justify-content-end flex-wrap">
+        <a href="/rooms/{{ room.name }}/summary" class="btn btn-outline-info">
+            <i class="bi bi-journal-text"></i> View Session Summary
+        </a>
         {% if not is_readonly() %}
         {% if annotations.pinned %}
         <form method="post" action="/rooms/{{ room.name }}/unpin" style="display:inline;">
