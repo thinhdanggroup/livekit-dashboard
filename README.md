@@ -10,8 +10,6 @@ A ~2-minute tour of the dashboard, recorded against a real LiveKit Cloud project
 
 ## Features
 
-![LiveKit Dashboard](./docs/images/dashboard-overview.png)
-
 - **Overview** — server health, active rooms/participants, SDK latency, connection-success and platform analytics
 - **Rooms** — list, create, and close rooms; live participant/track detail with RTC connection stats; pin, tag, and annotate rooms; CSV export
 - **Session Summary** — read-only lifecycle timeline (joins/leaves/mutes) for any live or recently-ended room, plus its recordings
@@ -64,13 +62,13 @@ Log in at `http://localhost:8000` with your admin credentials. Key pages:
 
 | Page | Path | Highlights |
 | --- | --- | --- |
-| Rooms | `/rooms` | ![Rooms](./docs/images/dashboard-rooms.png) Create/close rooms, drill into participants & tracks, pin/tag/annotate |
-| Egress | `/egress` | ![Egress](./docs/images/dashboard-egress.png) Start/stop recordings, view outputs and download URLs |
-| Agents | `/agents` | ![Agents](./docs/images/dashboard-agents.png) Fleet overview, per-agent job metrics, dispatch/delete |
-| SIP | `/sip-outbound`, `/sip-inbound` | ![SIP Outbound](./docs/images/dashboard-sip-outbound.png) Trunks, outbound calls, inbound dispatch rules (`ENABLE_SIP=true`) |
-| Homer Monitor | `/homer` | ![Homer SIP Monitor](./docs/images/dashboard-homer.png) Call search, flow diagram, message/log inspection, JSON export (`ENABLE_HOMER=true`) |
-| Sandbox | `/sandbox` | ![Token Generator](./docs/images/dashboard-sandbox.png) Generate test tokens with custom permissions and TTL |
-| Settings | `/settings` | ![Settings](./docs/images/dashboard-settings.png) Server config, masked secrets, security status |
+| Rooms | `/rooms` | Create/close rooms, drill into participants & tracks, pin/tag/annotate |
+| Egress | `/egress` | Start/stop recordings, view outputs and download URLs |
+| Agents | `/agents` | Fleet overview, per-agent job metrics, dispatch/delete |
+| SIP | `/sip-outbound`, `/sip-inbound` | Trunks, outbound calls, inbound dispatch rules (`ENABLE_SIP=true`) |
+| Homer Monitor | `/homer` | Call search, flow diagram, message/log inspection, JSON export (`ENABLE_HOMER=true`) |
+| Sandbox | `/sandbox` | Generate test tokens with custom permissions and TTL |
+| Settings | `/settings` | Server config, masked secrets, security status |
 
 Full endpoint list below in [API Endpoints](#api-endpoints).
 
