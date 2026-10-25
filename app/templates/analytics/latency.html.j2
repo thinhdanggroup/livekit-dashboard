@@ -1,0 +1,87 @@
+{% extends "base.html.j2" %}
+
+{% block title %}Latency Analytics — LiveKit Dashboard{% endblock %}
+{% block page_title %}Latency Analytics{% endblock %}
+{% block page_subtitle %}
+<p class="text-muted mb-0">Percentile latency for internal API and RTC operations</p>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+
+  <div class="d-flex align-items-center gap-2 mb-4">
+    <span class="text-muted small me-1">Window:</span>
+    <a href="?window=1h" class="btn btn-sm {% if window == '1h' %}btn-primary{% else %}btn-outline-secondary{% endif %}">1h</a>
+    <a href="?window=24h" class="btn btn-sm {% if window == '24h' %}btn-primary{% else %}btn-outline-secondary{% endif %}">24h</a>
+  </div>
+
+  {% if not op_stats %}
+  <div class="card">
+    <div class="card-body">
+      <p class="text-muted small mb-0">No latency data recorded yet.</p>
+    </div>
+  </div>
+  {% else %}
+  <div class="row g-4">
+    {% for entry in op_stats %}
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header">
+          <h6 class="mb-0"><i class="bi bi-speedometer me-2"></i>{{ entry.op_type }}</h6>
+        </div>
+        <div class="card-body">
+          {% if entry.stats %}
+          <div class="stats-grid mb-3">
+            <div class="stat-card">
+              <div class="stat-label">P50</div>
+              <div class="stat-value">{{ "%.1f"|format(entry.stats.p50) }}</div>
+              <div class="stat-change">ms</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">P90</div>
+              <div class="stat-value info">{{ "%.1f"|format(entry.stats.p90) }}</div>
+              <div class="stat-change">ms</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">P99</div>
+              <div class="stat-value {% if entry.stats.p99 > 1000 %}danger{% endif %}">{{ "%.1f"|format(entry.stats.p99) }}</div>
+              <div class="stat-change">ms</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Count</div>
+              <div class="stat-value">{{ entry.stats.count }}</div>
+              <div class="stat-change">samples</div>
+            </div>
+          </div>
+
+          <h6 class="small text-muted text-uppercase mb-2">Slowest recent operations</h6>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Latency (ms)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for ts, latency_ms in entry.slowest %}
+                <tr>
+                  <td class="small text-muted">{{ ts|int|datetimeformat }}</td>
+                  <td>{{ "%.1f"|format(latency_ms) }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <p class="text-muted small mb-0">No latency data in this window.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

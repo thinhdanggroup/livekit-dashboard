@@ -19,7 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from starlette.middleware.sessions import SessionMiddleware
 
-from app.routes import overview, rooms, egress, ingress, sip, settings, sandbox, auth, agents, homer, search, views, alerts, audit, diagnostics, events
+from app.routes import overview, rooms, egress, ingress, sip, settings, sandbox, auth, agents, homer, search, views, alerts, audit, diagnostics, events, analytics
 from app.security.csrf import get_csrf_token
 from app.services import ip_allowlist
 from app.utils.formatters import format_duration, format_pct, status_color, format_number
@@ -195,6 +195,7 @@ app.include_router(alerts.router, tags=["Alerts"])
 app.include_router(audit.router, tags=["Audit"])
 app.include_router(diagnostics.router, tags=["Diagnostics"])
 app.include_router(events.router, tags=["Events"])
+app.include_router(analytics.router, tags=["Analytics"])
 
 
 # Security headers middleware
