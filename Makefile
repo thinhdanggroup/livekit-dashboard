@@ -1,4 +1,4 @@
-.PHONY: help install run dev test fmt lint clean docker-build docker-run docker-stop docker-logs
+.PHONY: help install run dev test fmt lint clean docker-build docker-run docker-stop docker-logs demo-record
 
 # Default target
 .DEFAULT_GOAL := help
@@ -97,6 +97,11 @@ env-example: ## Create .env file from .env.example
 	else \
 		echo "$(YELLOW).env file already exists$(NC)"; \
 	fi
+
+demo-record: ## Record a feature-tour video against your real .env LiveKit server
+	@echo "$(BLUE)Recording demo video (see scripts/demo/)...$(NC)"
+	poetry run playwright install chromium
+	poetry run python scripts/demo/record.py
 
 setup: install env-example ## Initial setup: install dependencies and create .env
 	@echo "$(GREEN)Setup complete! Edit .env with your LiveKit credentials, then run 'make dev'$(NC)"
