@@ -297,6 +297,66 @@ class TestAnnotateRoom:
         assert saved["note"] == ""
 
 
+class TestGhostRooms:
+    def _make_room(self, name, participants=2, max_p=100, creation_time=1000, metadata=""):
+        r = MagicMock()
+        r.name = name
+        r.num_participants = participants
+        r.max_participants = max_p
+        r.creation_time = creation_time
+        r.metadata = metadata
+        return r
+
+    def test_rooms_index_shows_ghost_after_room_disappears(self, rooms_client):
+        # The dashboard's auto-refresh poller re-fetches /rooms?partial=1 and
+        # swaps #rooms-list (see app/static/js/main.js); that's the request
+        # that must grow a ghost row once a room vanishes between polls.
+        c, mock_lk = rooms_client
+
+        # First poll: "r1" is live.
+        mock_lk.list_rooms = AsyncMock(return_value=([self._make_room("r1")], 0.0))
+        r1 = c.get("/rooms?partial=1", headers=_auth_headers())
+        assert r1.status_code == status.HTTP_200_OK
+        assert "r1" in r1.text
+
+        # Second poll: "r1" has disappeared -> it should show up as a ghost.
+        mock_lk.list_rooms = AsyncMock(return_value=([], 0.0))
+        r2 = c.get("/rooms?partial=1", headers=_auth_headers())
+        assert r2.status_code == status.HTTP_200_OK
+        assert "r1" in r2.text
+        assert "Ended" in r2.text
+
+    def test_ghost_room_search_filter_applies(self, rooms_client):
+        c, mock_lk = rooms_client
+
+        mock_lk.list_rooms = AsyncMock(return_value=([
+            self._make_room("prod-room"),
+            self._make_room("dev-room"),
+        ], 0.0))
+        r1 = c.get("/rooms?partial=1", headers=_auth_headers())
+        assert r1.status_code == status.HTTP_200_OK
+
+        # Both rooms disappear.
+        mock_lk.list_rooms = AsyncMock(return_value=([], 0.0))
+        r2 = c.get("/rooms?partial=1&search=prod", headers=_auth_headers())
+        assert r2.status_code == status.HTTP_200_OK
+        assert "prod-room" in r2.text
+        assert "dev-room" not in r2.text
+
+    def test_ghost_room_has_no_mutating_controls(self, rooms_client):
+        c, mock_lk = rooms_client
+
+        mock_lk.list_rooms = AsyncMock(return_value=([self._make_room("r1")], 0.0))
+        c.get("/rooms?partial=1", headers=_auth_headers())
+
+        mock_lk.list_rooms = AsyncMock(return_value=([], 0.0))
+        r2 = c.get("/rooms?partial=1", headers=_auth_headers())
+        assert r2.status_code == status.HTTP_200_OK
+        assert "/rooms/r1/delete" not in r2.text
+        assert 'data-room-name="r1"' not in r2.text
+        assert 'href="/rooms/r1"' not in r2.text
+
+
 class TestRoomAnnotationsService:
     def test_pin_unpin_get_pinned(self, tmp_path, monkeypatch):
         import app.services.room_annotations as ann

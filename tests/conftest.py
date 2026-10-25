@@ -27,6 +27,16 @@ def _isolate_webhook_log(tmp_path, monkeypatch):
     monkeypatch.setattr(wl, "_STORE_PATH", str(tmp_path / "webhook_log.json"))
 
 
+@pytest.fixture(autouse=True)
+def _isolate_ghost_rooms(tmp_path, monkeypatch):
+    """Point the ghost-room tracker at a per-test tmp file so tests never
+    read or write the real shared /tmp/ghost_rooms.json, and so one test's
+    polls don't leak ghosts into another test via /rooms."""
+    import app.services.ghost_rooms as gr
+
+    monkeypatch.setattr(gr, "_STORE_PATH", str(tmp_path / "ghost_rooms.json"))
+
+
 @pytest.fixture
 def client():
     """Create a test client"""

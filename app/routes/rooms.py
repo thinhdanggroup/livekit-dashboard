@@ -10,6 +10,7 @@ from typing import List, Optional
 from app.services.livekit import LiveKitClient, get_livekit_client
 from app.services import room_annotations as annotations
 from app.services import audit_log
+from app.services import ghost_rooms
 from app.security.basic_auth import requires_admin, get_current_user
 from app.security.csrf import get_csrf_token, verify_csrf_token
 from app.utils.filters import parse_filters
@@ -17,6 +18,28 @@ from app.utils.filters import parse_filters
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+class _GhostRoomView:
+    """Read-only view of a recently-closed room, shaped like the live
+    `_RoomView` proxy so the rooms table can render both uniformly. Ghosts
+    carry no live state (always 0 participants, no empty_timeout) and expose
+    no mutating actions in the template."""
+
+    def __init__(self, name, max_participants, creation_time, metadata,
+                 closed_at, closed_minutes_ago):
+        self.name = name
+        self.num_participants = 0
+        self.max_participants = max_participants
+        self.creation_time = creation_time
+        self.empty_timeout = 0
+        self.metadata = metadata
+        self.closed_at = closed_at
+        self._pinned = False
+        self._tags = []
+        self._note = ""
+        self._ghost = True
+        self._closed_minutes_ago = closed_minutes_ago
 
 
 @router.get("/rooms", response_class=HTMLResponse, dependencies=[Depends(requires_admin)])
@@ -36,9 +59,22 @@ async def rooms_index(
         rooms, latency = [], 0.0
     latency_ms = round(latency * 1000, 2)
 
+    snapshot = [
+        {
+            "name": r.name,
+            "num_participants": getattr(r, "num_participants", 0),
+            "max_participants": getattr(r, "max_participants", 0),
+            "creation_time": getattr(r, "creation_time", 0),
+            "metadata": getattr(r, "metadata", ""),
+        }
+        for r in rooms
+    ]
+    ghosts = ghost_rooms.record_poll(snapshot)
+
     # Filter by search if provided
     if search:
         rooms = [r for r in rooms if search.lower() in r.name.lower()]
+        ghosts = [g for g in ghosts if search.lower() in g["name"].lower()]
 
     current_user = get_current_user(request)
     pinned_names = annotations.get_pinned()
@@ -54,11 +90,16 @@ async def rooms_index(
         v._pinned = room.name in pinned_names
         v._tags = all_annotations.get("tags", {}).get(room.name, [])
         v._note = all_annotations.get("notes", {}).get(room.name, "")
+        v._ghost = False
+        v._closed_minutes_ago = None
         return v
 
     rooms = [_annotate(r) for r in rooms]
     pinned_rooms = [r for r in rooms if r._pinned]
     unpinned_rooms = [r for r in rooms if not r._pinned]
+
+    ghost_views = [_GhostRoomView(**g) for g in ghosts]
+    unpinned_rooms = unpinned_rooms + ghost_views
 
     template_data = {
         "request": request,

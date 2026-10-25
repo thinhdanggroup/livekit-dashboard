@@ -33,14 +33,19 @@
                             {% endif %}
                         </td>
                         <td>
+                            {% if room._ghost %}
+                            <span class="badge badge-secondary">Ended</span>
+                            {% else %}
                             <span class="badge {% if room.num_participants > 0 %}badge-success{% else %}badge-secondary{% endif %}">
                                 {{ room.num_participants }}
                             </span>
+                            {% endif %}
                         </td>
                         <td>{{ room.max_participants }}</td>
                         <td>{{ room.creation_time }}</td>
                         <td>{{ room.empty_timeout }}s</td>
                         <td style="text-align: right;">
+                            {% if not room._ghost %}
                             <div class="btn-group">
                                 <a href="/rooms/{{ room.name }}" class="btn btn-sm btn-secondary" title="View">
                                     <i class="bi bi-eye"></i>
@@ -63,6 +68,9 @@
                                 </button>
                                 {% endif %}
                             </div>
+                            {% else %}
+                            <span class="text-muted">Ended {{ room._closed_minutes_ago }}m ago</span>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
