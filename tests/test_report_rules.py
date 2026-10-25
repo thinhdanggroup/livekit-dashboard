@@ -166,3 +166,21 @@ async def test_run_due_rules_skips_not_due_and_disabled(_report_rules_env, monke
     assert results == []
     post_mock.assert_not_called()
     gather_mock.assert_not_called()
+
+
+async def test_run_rule_now_marks_run_on_crash(_report_rules_env, monkeypatch):
+    rule = rr.create_rule("Daily Summary", "interval", interval_minutes=1)
+    assert rule.last_run == ""
+
+    monkeypatch.setattr(
+        "app.services.dashboard.gather_dashboard_stats",
+        AsyncMock(side_effect=RuntimeError("boom")),
+    )
+
+    result = await rr.run_rule_now(rule, lk=MagicMock())
+
+    assert result["status"] is None
+    assert "boom" in result["error"]
+
+    updated = rr.get_rule(rule.id)
+    assert updated.last_run != ""
