@@ -1,6 +1,6 @@
 # LiveKit Dashboard
 
-A **stateless**, self-hosted, server-side rendered dashboard for managing a private [LiveKit](https://livekit.io) server. Built with **FastAPI** and **Jinja2**, talking to LiveKit only through its official Python SDK — no database, no Redis, no background workers.
+A **stateless**, self-hosted, server-side rendered dashboard for managing a private [LiveKit](https://livekit.io) server. Built with **FastAPI** and **Jinja2**, talking to LiveKit only through its official Python SDK — no database, no Redis, no separate worker processes.
 
 ## Demo
 
@@ -14,11 +14,18 @@ A ~2-minute tour of the dashboard, recorded against a real LiveKit Cloud project
 - **Rooms** — list, create, and close rooms; live participant/track detail with RTC connection stats; pin, tag, and annotate rooms; CSV export
 - **Session Summary** — read-only lifecycle timeline (joins/leaves/mutes) for any live or recently-ended room, plus its recordings
 - **Egress** — start/stop composite, track, or web-capture recordings; view active jobs and storage usage
-- **Ingress** — stream analytics and connection-quality metrics
+- **Ingress** — create and manage RTMP/WHIP ingress endpoints that publish into a room
 - **Agents** — dispatch agents to rooms, fleet overview grouped by agent name, per-agent job status and success rate
 - **SIP** *(optional)* — manage trunks, outbound/inbound calls and dispatch rules
 - **Homer SIP Monitor** *(optional)* — search SIP calls captured by Homer/SIPCAPTURE, with ladder-diagram call flow, message inspection, and JSON export
 - **Sandbox** — generate signed join tokens on the fly, with an HMAC verification helper
+- **Search** — cross-entity search across rooms, participants, egress, and ingress
+- **Saved Views** — save and reuse filter/search presets
+- **Alerts** — threshold rules on dashboard metrics that fire an operator webhook
+- **Live Events** — real-time room/participant activity via Server-Sent Events
+- **Analytics** — latency percentile dashboard over 1h/24h windows
+- **Audit Log** — history of operator actions (room create/delete, dispatch, etc.)
+- **Diagnostics** — per-room support bundle export, plus a webhook tester and delivery log
 - **Settings** — read-only server config, masked credentials, and security status
 
 Every page is server-rendered with HTMX for auto-refresh, protected by HTTP Basic Auth + CSRF, and reads live from the LiveKit API on each request — there's no cache to go stale.
@@ -34,7 +41,7 @@ One FastAPI process: it reads/writes the LiveKit server directly on every reques
 Requires Python 3.11+ and a LiveKit server (self-hosted or [LiveKit Cloud](https://cloud.livekit.io)).
 
 ```bash
-git clone <repository-url> && cd livekit-dashboard
+git clone https://github.com/thinhdanggroup/livekit-dashboard.git && cd livekit-dashboard
 make install            # poetry install
 make env-example        # creates .env — edit it with your LiveKit credentials
 make dev                # http://localhost:8000, auto-reload
@@ -59,24 +66,13 @@ All configuration is via environment variables (`.env`):
 | `ENABLE_SIP`         | ❌        | `false`    | Enable SIP features                                               |
 | `ENABLE_HOMER`       | ❌        | `false`    | Enable the Homer SIP Monitor tab                                   |
 | `HOMER_URL` / `HOMER_USERNAME` / `HOMER_PASSWORD` | ❌* | — | Homer server + credentials |
+| `DASHBOARD_ROLE`     | ❌        | `admin`    | Set to `readonly` to block all mutating (POST/PUT/PATCH/DELETE) requests |
 
 \* Required when `ENABLE_HOMER=true`.
 
 ## Usage
 
-Log in at `http://localhost:8000` with your admin credentials. Key pages:
-
-| Page | Path | Highlights |
-| --- | --- | --- |
-| Rooms | `/rooms` | Create/close rooms, drill into participants & tracks, pin/tag/annotate |
-| Egress | `/egress` | Start/stop recordings, view outputs and download URLs |
-| Agents | `/agents` | Fleet overview, per-agent job metrics, dispatch/delete |
-| SIP | `/sip-outbound`, `/sip-inbound` | Trunks, outbound calls, inbound dispatch rules (`ENABLE_SIP=true`) |
-| Homer Monitor | `/homer` | Call search, flow diagram, message/log inspection, JSON export (`ENABLE_HOMER=true`) |
-| Sandbox | `/sandbox` | Generate test tokens with custom permissions and TTL |
-| Settings | `/settings` | Server config, masked secrets, security status |
-
-Full endpoint list below in [API Endpoints](#api-endpoints).
+Log in at `http://localhost:8000` with your admin credentials. Every feature above is its own page — Overview (`/`), Rooms (`/rooms`), Egress (`/egress`), Ingress (`/ingress`), Agents (`/agents`), Sandbox (`/sandbox`), Search (`/search`), Saved Views (`/views`), Alerts (`/alerts`), Live Events (`/events`), Analytics (`/analytics/latency`), Audit Log (`/audit`), Diagnostics (`/diagnostics`), and Settings (`/settings`) — plus, when enabled, SIP (`/sip-outbound`, `/sip-inbound`) and the Homer Monitor (`/homer`). Full endpoint list in [API Endpoints](#api-endpoints).
 
 ## Development
 
@@ -142,6 +138,8 @@ Or `docker-compose up -d` using the included `docker-compose.yml` (reads `.env`)
 | `/egress`                          | GET    | List egress jobs      | ✅ |
 | `/egress/start`                    | POST   | Start egress          | ✅ |
 | `/egress/{id}/stop`                | POST   | Stop egress           | ✅ |
+| `/ingress`                         | GET    | List ingress endpoints | ✅ |
+| `/ingress/create`                  | POST   | Create ingress endpoint | ✅ |
 | `/agents`                          | GET    | Agent fleet overview  | ✅ |
 | `/agents/{name}`                   | GET    | Per-agent detail      | ✅ |
 | `/agents/dispatch`                 | POST   | Create dispatch       | ✅ |
@@ -149,6 +147,14 @@ Or `docker-compose up -d` using the included `docker-compose.yml` (reads `.env`)
 | `/sip-outbound`, `/sip-inbound`    | GET    | SIP pages             | ✅ |
 | `/homer`, `/homer/call/{callid}`   | GET    | Homer SIP search/detail | ✅ |
 | `/sandbox`                         | GET    | Token generator        | ✅ |
+| `/search`                          | GET    | Cross-entity search    | ✅ |
+| `/views`                           | GET/POST | List / save views    | ✅ |
+| `/alerts`                          | GET/POST | Alert rules + webhook config | ✅ |
+| `/events`                          | GET    | Live events page       | ✅ |
+| `/events/stream`                   | GET    | Live event stream (SSE) | ✅ |
+| `/analytics/latency`               | GET    | Latency percentile dashboard | ✅ |
+| `/audit`                           | GET    | Audit log              | ✅ |
+| `/diagnostics`                     | GET    | Support bundle + webhook tester | ✅ |
 | `/settings`                        | GET    | Settings page          | ✅ |
 | `/logout`                          | GET    | Logout page            | ❌ |
 | `/health`                          | GET    | Health check           | ❌ |
