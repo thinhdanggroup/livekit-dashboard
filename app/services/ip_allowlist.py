@@ -53,6 +53,8 @@ def get_allowlist() -> list[str]:
 
 
 def save_allowlist(raw: str, requester_ip: str) -> list[str]:
+    requester_ip = requester_ip.strip()
+
     if not raw.strip():
         ips: list[str] = []
     else:

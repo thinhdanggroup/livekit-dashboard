@@ -85,6 +85,15 @@ def test_save_allowlist_drops_duplicates_in_raw_input(tmp_path):
     assert sorted(result) == ["1.1.1.1", "2.2.2.2"]
 
 
+def test_save_allowlist_strips_whitespace_from_requester_ip(tmp_path):
+    with patch.object(ipa, "_STORE_PATH", str(tmp_path / "a.json")):
+        result = ipa.save_allowlist(
+            "203.0.113.5", requester_ip="  203.0.113.5  "
+        )
+    assert result == ["203.0.113.5"]
+    assert result.count("203.0.113.5") == 1
+
+
 def test_get_allowlist_persists_across_calls(tmp_path):
     with patch.object(ipa, "_STORE_PATH", str(tmp_path / "a.json")):
         ipa.save_allowlist("203.0.113.5", requester_ip="198.51.100.9")
