@@ -35,10 +35,18 @@ def _load() -> dict:
     non-UTF-8/undecodable bytes) must never propagate -- it is treated the
     same as "no store yet" so that a corrupt or misconfigured store fails
     open (allow-all) rather than locking every operator out.
+
+    A missing file is the NORMAL state for a fresh/default install where
+    nobody has configured an allowlist yet, and is_allowed() runs on every
+    request -- so that case is handled silently (no log). Anything else
+    (permission denied, a directory at the path, malformed JSON, non-UTF-8
+    bytes, etc.) indicates a real, unexpected problem worth a warning.
     """
     try:
         with open(_STORE_PATH, encoding="utf-8") as f:
             return json.load(f)
+    except FileNotFoundError:
+        return {}
     except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
         logger.warning("ip_allowlist store unreadable at %s (%s); treating as empty", _STORE_PATH, exc)
         return {}
@@ -88,6 +96,11 @@ def save_allowlist(raw: str, requester_ip: str) -> list[str]:
             ips.append(requester_ip)
 
     cfg = _load()
+    if not isinstance(cfg, dict):
+        # Self-heal a malformed store (e.g. a bare `[]` file) instead of
+        # crashing on cfg["ips"] = ... below; a save is an explicit admin
+        # remediation action, so rewriting it to the expected shape is safe.
+        cfg = {}
     cfg["ips"] = ips
     _save(cfg)
     return ips

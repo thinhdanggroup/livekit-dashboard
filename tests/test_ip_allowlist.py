@@ -167,3 +167,49 @@ def test_get_allowlist_non_string_items_fails_open(tmp_path):
     with patch.object(ipa, "_STORE_PATH", str(store_path)):
         assert ipa.get_allowlist() == []
         assert ipa.is_allowed("9.9.9.9") is True
+
+
+def test_missing_store_logs_no_warning(tmp_path, caplog):
+    """A never-configured (missing) store is the NORMAL state for a fresh
+    install, and is_allowed() runs on every request -- it must not spam a
+    warning on every single request forever."""
+    store_path = tmp_path / "does_not_exist.json"
+    with caplog.at_level("WARNING", logger="app.services.ip_allowlist"):
+        with patch.object(ipa, "_STORE_PATH", str(store_path)):
+            assert ipa.get_allowlist() == []
+            assert ipa.is_allowed("9.9.9.9") is True
+    assert caplog.records == []
+
+
+def test_genuinely_corrupt_store_still_logs_warning(tmp_path, caplog):
+    """Unlike a missing file, a real corruption (directory at the path,
+    malformed JSON, etc.) should still be logged -- it's an operator-visible
+    signal something is actually wrong, just not on every normal request."""
+    store_path = tmp_path / "a.json"
+    store_path.write_text("{not valid json")
+    with caplog.at_level("WARNING", logger="app.services.ip_allowlist"):
+        with patch.object(ipa, "_STORE_PATH", str(store_path)):
+            assert ipa.get_allowlist() == []
+    assert len(caplog.records) == 1
+    assert "unreadable" in caplog.records[0].message
+
+
+def test_genuinely_corrupt_directory_store_still_logs_warning(tmp_path, caplog):
+    store_path = tmp_path / "a.json"
+    store_path.mkdir()
+    with caplog.at_level("WARNING", logger="app.services.ip_allowlist"):
+        with patch.object(ipa, "_STORE_PATH", str(store_path)):
+            assert ipa.get_allowlist() == []
+    assert len(caplog.records) == 1
+
+
+def test_save_allowlist_self_heals_non_dict_store(tmp_path):
+    """save_allowlist must not 500 when the existing store is malformed
+    (e.g. a bare `[]` file) -- an explicit admin save should self-heal it
+    to the expected {"ips": [...]} shape rather than raising."""
+    store_path = tmp_path / "a.json"
+    store_path.write_text("[]")
+    with patch.object(ipa, "_STORE_PATH", str(store_path)):
+        result = ipa.save_allowlist("203.0.113.5", requester_ip="203.0.113.5")
+        assert result == ["203.0.113.5"]
+        assert ipa.get_allowlist() == ["203.0.113.5"]
