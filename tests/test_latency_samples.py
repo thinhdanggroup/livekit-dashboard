@@ -82,6 +82,50 @@ def test_recent_samples_empty_for_unknown_op_type():
     assert ls.recent_samples("unknown_op") == []
 
 
+def test_oldest_sample_ts_none_when_no_samples():
+    ls._reset_for_tests()
+    assert ls.oldest_sample_ts("api_list_rooms") is None
+
+
+def test_oldest_sample_ts_returns_min_ts_in_window():
+    ls._reset_for_tests()
+    ls.record("api_list_rooms", 1.0, ts=100.0)
+    ls.record("api_list_rooms", 2.0, ts=300.0)
+    ls.record("api_list_rooms", 3.0, ts=200.0)
+    assert ls.oldest_sample_ts("api_list_rooms") == 100.0
+
+
+def test_oldest_sample_ts_respects_window(monkeypatch):
+    ls._reset_for_tests()
+    ls.record("api_list_rooms", 1.0, ts=100.0)   # outside window
+    ls.record("api_list_rooms", 2.0, ts=1650.0)  # inside window
+    monkeypatch.setattr(ls.time, "time", lambda: 1700.0)
+    assert ls.oldest_sample_ts("api_list_rooms", window_seconds=60) == 1650.0
+
+
+# ---------------------------------------------------------------------------
+# record() must never raise, regardless of internal failure (plan constraint:
+# "Recording a sample must never be able to raise or slow down the call it's
+# attached to"). Both app/services/livekit.py call sites invoke record()
+# bare, with no try/except of their own, so the protection has to live here.
+# ---------------------------------------------------------------------------
+
+
+def test_record_swallows_internal_errors(monkeypatch, caplog):
+    ls._reset_for_tests()
+    broken_deque = MagicMock()
+    broken_deque.append.side_effect = RuntimeError("boom")
+    # Bypass the defaultdict factory and install a store entry whose
+    # append() raises, simulating an internal failure inside record().
+    ls._store["api_list_rooms"] = broken_deque
+
+    with caplog.at_level("WARNING"):
+        ls.record("api_list_rooms", 42.0)  # must not raise
+
+    broken_deque.append.assert_called_once()
+    assert "api_list_rooms" in caplog.text
+
+
 # ---------------------------------------------------------------------------
 # Integration: real instrumentation points in app.services.livekit.LiveKitClient
 # ---------------------------------------------------------------------------

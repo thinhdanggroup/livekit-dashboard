@@ -51,6 +51,27 @@ def test_latency_page_window_24h_excludes_old_samples(client, auth_headers):
     assert b"no data" in resp.content.lower() or b"No latency data" in resp.content
 
 
+def test_latency_page_shows_real_coverage_not_full_window(client, auth_headers):
+    """Selecting the 24h window must show the real retained coverage (here,
+    ~1h) rather than silently implying a full 24h of history -- the exact
+    "silent fallback instead of an honest signal" failure mode this project
+    has explicit history of avoiding.
+    """
+    ls._reset_for_tests()
+    import time
+
+    now = time.time()
+    ls.record("api_list_rooms", 10.0, ts=now - 3600)  # oldest retained sample: ~1h ago
+    ls.record("api_list_rooms", 20.0, ts=now - 60)
+
+    resp = client.get("/analytics/latency?window=24h", headers=auth_headers)
+    assert resp.status_code == 200
+    text = resp.content.decode()
+
+    assert "Showing data from the last 1h" in text
+    assert "Showing data from the last 24h" not in text
+
+
 def test_latency_page_slowest_sorted_descending(client, auth_headers):
     ls._reset_for_tests()
     ls.record("rtc_connect", 5.0)

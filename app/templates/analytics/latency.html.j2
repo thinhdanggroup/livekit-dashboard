@@ -31,6 +31,9 @@
         </div>
         <div class="card-body">
           {% if entry.stats %}
+          {% if entry.coverage_label %}
+          <p class="text-muted small mb-2">Showing data from the last {{ entry.coverage_label }}</p>
+          {% endif %}
           <div class="stats-grid mb-3">
             <div class="stat-card">
               <div class="stat-label">P50</div>
