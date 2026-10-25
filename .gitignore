@@ -69,3 +69,6 @@ CLAUDE.md
 
 # Playwright MCP session screenshots/snapshots
 .playwright-mcp/
+
+# Subagent-driven-development scratch workspace (ledgers, briefs, review packages)
+.superpowers/
