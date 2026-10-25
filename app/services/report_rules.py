@@ -189,7 +189,12 @@ async def run_rule_now(rule: ReportRule, lk: LiveKitClient) -> dict:
         payload = build_digest(rule.name, stats, observations)
         url = notifications.get_config().get("webhook_url", "").strip()
         if url:
-            result = http_util.post_json(url, payload)
+            # Run the blocking (urllib-based, up to 5s timeout) POST in a
+            # thread pool so it doesn't freeze the event loop -- this is
+            # called from run_scheduler_loop's recurring background task,
+            # and a slow/unresponsive webhook host would otherwise stall
+            # every request in the app (including /health) for up to 5s.
+            result = await asyncio.to_thread(http_util.post_json, url, payload)
         else:
             result = {"status": None, "error": "no webhook_url configured"}
         webhook_log.log_delivery(

@@ -59,6 +59,16 @@ def _isolate_security_log(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _isolate_notifications(tmp_path, monkeypatch):
+    """Point the notifications config store at a per-test tmp file so tests
+    never read or write the real shared /tmp/notifications_config.json --
+    the exact file a real locally-running dashboard would use."""
+    import app.services.notifications as notifications
+
+    monkeypatch.setattr(notifications, "_STORE_PATH", str(tmp_path / "notifications_config.json"))
+
+
+@pytest.fixture(autouse=True)
 def _isolate_report_rules(tmp_path, monkeypatch):
     """Point the report-rule store at a per-test tmp file so tests never
     read or write the real shared /tmp/report_rules.json. This matters even
