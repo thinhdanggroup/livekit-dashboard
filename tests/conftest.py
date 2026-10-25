@@ -96,6 +96,18 @@ def _isolate_room_history(tmp_path, monkeypatch):
     monkeypatch.setattr(rh, "_STORE_PATH", str(tmp_path / "room_history.json"))
 
 
+@pytest.fixture(autouse=True)
+def _isolate_room_annotations(tmp_path, monkeypatch):
+    """Point the room notes/tags/pinned store at a per-test tmp file so tests
+    never read or write the real shared /tmp/room_annotations.json. Without
+    this, any test that calls room_annotations.set_annotations/pin_room
+    directly (several already do, via per-call monkeypatching that's easy to
+    forget) pollutes a developer's real local annotations file."""
+    import app.services.room_annotations as ann
+
+    monkeypatch.setattr(ann, "_STORE_PATH", str(tmp_path / "room_annotations.json"))
+
+
 @pytest.fixture
 def client():
     """Create a test client"""
