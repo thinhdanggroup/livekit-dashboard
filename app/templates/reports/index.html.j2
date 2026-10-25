@@ -1,0 +1,125 @@
+{% extends "base.html.j2" %}
+
+{% block title %}Scheduled Reports — LiveKit Dashboard{% endblock %}
+{% block page_title %}Scheduled Reports{% endblock %}
+{% block page_subtitle %}
+<p class="text-muted mb-0">Deliver periodic stats digests to a webhook on an interval or daily schedule</p>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+
+  {% if not is_readonly() %}
+  <div class="card mb-4">
+    <div class="card-header"><h6 class="mb-0">Create report rule</h6></div>
+    <div class="card-body">
+      <form method="post" action="/reports" class="row g-2 align-items-end">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="col-sm-3">
+          <label class="form-label small">Name</label>
+          <input type="text" name="name" class="form-control form-control-sm"
+                 placeholder="e.g. Daily Digest" required>
+        </div>
+        <div class="col-sm-2">
+          <label class="form-label small">Schedule type</label>
+          <select name="schedule_type" class="form-select form-select-sm">
+            {% for st in schedule_types %}
+            <option value="{{ st }}">{{ st | capitalize }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-sm-3">
+          <label class="form-label small">Interval (minutes)</label>
+          <input type="number" name="interval_minutes" class="form-control form-control-sm" min="1">
+          <div class="form-text">Used only when schedule type is "interval".</div>
+        </div>
+        <div class="col-sm-2">
+          <label class="form-label small">Daily time (UTC)</label>
+          <input type="time" name="daily_time" class="form-control form-control-sm">
+          <div class="form-text">Used only when schedule type is "daily".</div>
+        </div>
+        <div class="col-sm-2">
+          <button type="submit" class="btn btn-primary btn-sm w-100">
+            <i class="bi bi-plus-circle"></i> Add Rule
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if not rules %}
+  <div class="card border-0 bg-body-tertiary text-center py-5">
+    <div class="card-body">
+      <i class="bi bi-clock-history fs-1 text-muted"></i>
+      <p class="mt-3 text-muted">No report rules yet. Create one above.</p>
+    </div>
+  </div>
+  {% else %}
+  <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>Name</th>
+          <th>Schedule</th>
+          <th>Last run</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for rule in rules %}
+        <tr>
+          <td>
+            {% if rule.enabled %}
+            <span class="badge bg-success">
+              <i class="bi bi-check-circle"></i> Enabled
+            </span>
+            {% else %}
+            <span class="badge bg-secondary">Disabled</span>
+            {% endif %}
+          </td>
+          <td class="fw-semibold">{{ rule.name }}</td>
+          <td class="font-monospace small text-muted">
+            {% if rule.schedule_type == 'interval' %}
+            every {{ rule.interval_minutes }} minutes
+            {% elif rule.schedule_type == 'daily' %}
+            daily at {{ rule.daily_time }}
+            {% else %}
+            {{ rule.schedule_type }}
+            {% endif %}
+          </td>
+          <td class="small text-muted">{{ rule.last_run if rule.last_run else 'never' }}</td>
+          <td class="text-end">
+            {% if not is_readonly() %}
+            <form method="post" action="/reports/{{ rule.id }}/run-now" class="d-inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="btn btn-sm btn-outline-primary" title="Run now">
+                <i class="bi bi-play-fill"></i>
+              </button>
+            </form>
+            <form method="post" action="/reports/{{ rule.id }}/toggle" class="d-inline ms-1">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="btn btn-sm btn-outline-secondary"
+                      title="{{ 'Disable' if rule.enabled else 'Enable' }}">
+                <i class="bi bi-{{ 'pause-circle' if rule.enabled else 'play' }}"></i>
+              </button>
+            </form>
+            <form method="post" action="/reports/{{ rule.id }}/delete" class="d-inline ms-1">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete rule"
+                      onclick="return confirm('Delete this rule?')">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

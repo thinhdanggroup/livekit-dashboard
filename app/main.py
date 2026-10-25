@@ -21,9 +21,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from starlette.middleware.sessions import SessionMiddleware
 
-from app.routes import overview, rooms, egress, ingress, sip, settings, sandbox, auth, agents, homer, search, views, alerts, audit, diagnostics, events, analytics
+from app.routes import overview, rooms, egress, ingress, sip, settings, sandbox, auth, agents, homer, search, views, alerts, audit, diagnostics, events, analytics, report_rules
 from app.security.csrf import get_csrf_token
-from app.services import ip_allowlist, report_rules
+from app.services import ip_allowlist
+from app.services import report_rules as report_rules_service
 from app.utils.formatters import format_duration, format_pct, status_color, format_number
 
 logger = logging.getLogger(__name__)
@@ -47,7 +48,7 @@ async def lifespan(app: FastAPI):
     else:
         print("✅ All required environment variables are set")
 
-    scheduler_task = asyncio.create_task(report_rules.run_scheduler_loop())
+    scheduler_task = asyncio.create_task(report_rules_service.run_scheduler_loop())
 
     yield
 
@@ -203,6 +204,7 @@ app.include_router(audit.router, tags=["Audit"])
 app.include_router(diagnostics.router, tags=["Diagnostics"])
 app.include_router(events.router, tags=["Events"])
 app.include_router(analytics.router, tags=["Analytics"])
+app.include_router(report_rules.router, tags=["Reports"])
 
 
 # Security headers middleware
