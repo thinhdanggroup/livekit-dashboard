@@ -403,6 +403,37 @@ class TestGhostRooms:
         assert 'data-room-name="live-room"' in r2.text
         assert 'href="/rooms/live-room"' in r2.text
 
+    def test_list_rooms_failure_does_not_create_false_ghosts(self, rooms_client):
+        """A LiveKit API failure (timeout, restart, network blip) must not be
+        mistaken for every room closing. The route's except branch falls
+        back to rooms=[]; if that empty list were fed into
+        ghost_rooms.record_poll, "r1" would incorrectly be marked as a ghost
+        with closed_at=now, showing a false "Ended" row on the very page an
+        operator checks when something seems wrong."""
+        c, mock_lk = rooms_client
+
+        # First poll: "r1" is live.
+        mock_lk.list_rooms = AsyncMock(return_value=([self._make_room("r1")], 0.0))
+        r1 = c.get("/rooms?partial=1", headers=_auth_headers())
+        assert r1.status_code == status.HTTP_200_OK
+        assert "r1" in r1.text
+
+        # Second poll: the LiveKit call raises (not an empty list -- an
+        # actual failure).
+        mock_lk.list_rooms = AsyncMock(side_effect=RuntimeError("livekit timeout"))
+        r2 = c.get("/rooms?partial=1", headers=_auth_headers())
+        assert r2.status_code == status.HTTP_200_OK
+        assert "Ended" not in r2.text
+        assert "r1" not in r2.text
+
+        # Third poll: LiveKit recovers and "r1" is live again -- it must
+        # still be a normal live room, never having been marked a ghost.
+        mock_lk.list_rooms = AsyncMock(return_value=([self._make_room("r1")], 0.0))
+        r3 = c.get("/rooms?partial=1", headers=_auth_headers())
+        assert r3.status_code == status.HTTP_200_OK
+        assert "r1" in r3.text
+        assert "Ended" not in r3.text
+
 
 class TestRoomAnnotationsService:
     def test_pin_unpin_get_pinned(self, tmp_path, monkeypatch):

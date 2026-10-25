@@ -1,5 +1,6 @@
 """Tests for the ghost room tracker service."""
 
+import json
 from unittest.mock import patch
 
 import app.services.ghost_rooms as gr
@@ -34,4 +35,29 @@ def test_ghosts_older_than_ttl_are_pruned(tmp_path):
         gr.record_poll([{"name": "r1", "num_participants": 1, "max_participants": 10, "creation_time": 1, "metadata": ""}])
         gr.record_poll([])  # ghost created, immediately older than a 0-minute TTL
         ghosts = gr.record_poll([])  # next poll should prune it
+    assert ghosts == []
+
+
+def test_record_poll_fails_open_on_corrupted_store(tmp_path):
+    """A hand-corrupted store file (e.g. a ghost entry missing the
+    closed_at key that _minutes_since requires) must not crash the /rooms
+    page -- record_poll should log the error and return [] instead of
+    propagating the exception."""
+    store_path = tmp_path / "g.json"
+    store_path.write_text(
+        json.dumps({
+            "live": {},
+            "ghosts": {
+                "corrupt-room": {
+                    "max_participants": 10,
+                    "creation_time": 1,
+                    "metadata": "",
+                    # "closed_at" deliberately omitted -> KeyError inside
+                    # record_poll's TTL-expiry step if unguarded.
+                }
+            },
+        })
+    )
+    with patch.object(gr, "_STORE_PATH", str(store_path)):
+        ghosts = gr.record_poll([])
     assert ghosts == []

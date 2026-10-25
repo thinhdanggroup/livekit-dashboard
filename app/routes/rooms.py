@@ -55,21 +55,30 @@ async def rooms_index(
 
     try:
         rooms, latency = await lk.list_rooms()
+        list_rooms_ok = True
     except Exception:
         rooms, latency = [], 0.0
+        list_rooms_ok = False
     latency_ms = round(latency * 1000, 2)
 
-    snapshot = [
-        {
-            "name": r.name,
-            "num_participants": getattr(r, "num_participants", 0),
-            "max_participants": getattr(r, "max_participants", 0),
-            "creation_time": getattr(r, "creation_time", 0),
-            "metadata": getattr(r, "metadata", ""),
-        }
-        for r in rooms
-    ]
-    ghosts = ghost_rooms.record_poll(snapshot)
+    if list_rooms_ok:
+        snapshot = [
+            {
+                "name": r.name,
+                "num_participants": getattr(r, "num_participants", 0),
+                "max_participants": getattr(r, "max_participants", 0),
+                "creation_time": getattr(r, "creation_time", 0),
+                "metadata": getattr(r, "metadata", ""),
+            }
+            for r in rooms
+        ]
+        ghosts = ghost_rooms.record_poll(snapshot)
+    else:
+        # lk.list_rooms() failed -- an empty room list here is an artifact of
+        # the API error, not a real "every room closed" signal. Diffing
+        # against it would mark every previously-live room as a ghost, so
+        # skip ghost tracking for this request entirely.
+        ghosts = []
 
     # Filter by search if provided
     if search:
