@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 from livekit import api, rtc
 
 from app.services import cache as dispatch_cache
+from app.services import latency_samples
 
 
 class LiveKitClient:
@@ -55,6 +56,7 @@ class LiveKitClient:
         req = api.ListRoomsRequest(names=names if names else [])
         resp = await lk.room.list_rooms(req)
         latency = time.perf_counter() - t0
+        latency_samples.record("api_list_rooms", latency * 1000)
         return list(resp.rooms), latency
 
     async def get_room(self, name: str):
@@ -1588,6 +1590,7 @@ class LiveKitClient:
                 except:
                     pass  # Ignore disconnect errors
 
+        latency_samples.record("rtc_connect", latency)
         return stats, latency, error_msg
 
     async def get_room_rtc_stats(self, room_name: str) -> Tuple[Dict[str, Any], float]:
