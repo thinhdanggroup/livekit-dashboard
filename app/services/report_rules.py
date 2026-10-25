@@ -1,12 +1,19 @@
 """JSON file-backed report rules with due-check scheduling logic."""
 
+import asyncio
 import json
 import os
 import re
 import uuid
 from dataclasses import dataclass, asdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
+
+import app.services.dashboard as dashboard
+import app.utils.http as http_util
+from app.services import anomaly, notifications, webhook_log
+from app.services.dashboard import DashboardStats
+from app.services.livekit import LiveKitClient
 
 
 _STORE_PATH = os.environ.get("REPORT_RULES_FILE", "/tmp/report_rules.json")
@@ -142,3 +149,70 @@ def mark_run(rule_id: str, now_iso: str) -> None:
             r["last_run"] = now_iso
             _save(rules)
             return
+
+
+def build_digest(rule_name: str, stats: DashboardStats, observations: list) -> str:
+    """Serialize a webhook digest payload for *rule_name* from dashboard stats."""
+    return json.dumps({
+        "source": "livekit-dashboard",
+        "report": rule_name,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "stats": {
+            "rooms_total": stats.rooms_total,
+            "rooms_active": stats.rooms_active,
+            "participants_total": stats.participants_total,
+            "egress_active": stats.egress_active,
+            "ingress_active": stats.ingress_active,
+            "connection_success_pct": stats.connection_success_pct,
+            "connection_minutes": stats.connection_minutes,
+            "platforms": stats.platforms,
+            "connection_types": stats.connection_types,
+            "api_latency_ms": stats.api_latency_ms,
+            "sip_enabled": stats.sip_enabled,
+            "sip_trunks": stats.sip_trunks,
+            "error": stats.error,
+        },
+        "observations": [asdict(o) for o in observations],
+    })
+
+
+async def run_rule_now(rule: ReportRule, lk: LiveKitClient) -> dict:
+    """Run *rule* unconditionally: gather stats, build a digest, deliver it.
+
+    Always marks the rule as run (even on failure) so a crashing rule
+    doesn't retry on every scheduler tick.
+    """
+    result = {"status": None, "error": None}
+    try:
+        stats = await dashboard.gather_dashboard_stats(lk)
+        observations = anomaly.detect(stats)
+        payload = build_digest(rule.name, stats, observations)
+        url = notifications.get_config().get("webhook_url", "").strip()
+        if url:
+            result = http_util.post_json(url, payload)
+        else:
+            result = {"status": None, "error": "no webhook_url configured"}
+        webhook_log.log_delivery(
+            "report_rule", url, payload, result.get("status"), result.get("error")
+        )
+    except Exception as exc:
+        result = {"status": None, "error": str(exc)}
+    finally:
+        mark_run(rule.id, datetime.now(timezone.utc).isoformat())
+    return {"rule_id": rule.id, "status": result.get("status"), "error": result.get("error")}
+
+
+async def run_due_rules(lk: LiveKitClient, now: datetime | None = None) -> list[dict]:
+    """Run every enabled rule that is currently due, returning per-rule results."""
+    now = now or datetime.now(timezone.utc)
+    return [await run_rule_now(rule, lk) for rule in list_rules() if is_due(rule, now)]
+
+
+async def run_scheduler_loop(interval_seconds: int = 60) -> None:
+    """Run due report rules on a fixed interval until cancelled."""
+    while True:
+        try:
+            await run_due_rules(LiveKitClient())
+        except Exception:
+            pass
+        await asyncio.sleep(interval_seconds)
