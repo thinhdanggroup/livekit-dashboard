@@ -58,6 +58,20 @@ def _isolate_security_log(tmp_path, monkeypatch):
     monkeypatch.setattr(sl, "_STORE_PATH", str(tmp_path / "security_log.json"))
 
 
+@pytest.fixture(autouse=True)
+def _isolate_report_rules(tmp_path, monkeypatch):
+    """Point the report-rule store at a per-test tmp file so tests never
+    read or write the real shared /tmp/report_rules.json. This matters even
+    more than the other stores: the `client` fixture's lifespan startup now
+    kicks off report_rules.run_scheduler_loop(), whose first tick calls
+    run_due_rules() against _STORE_PATH -- without this isolation, a
+    developer with stray due rules left from manual testing would trigger a
+    real stats fetch and webhook POST on every single test's startup."""
+    import app.services.report_rules as rr
+
+    monkeypatch.setattr(rr, "_STORE_PATH", str(tmp_path / "report_rules.json"))
+
+
 @pytest.fixture
 def client():
     """Create a test client"""
