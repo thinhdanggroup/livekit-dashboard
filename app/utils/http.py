@@ -36,7 +36,11 @@ def post_json(url: str, payload: str, timeout: float = 5.0) -> dict:
                 "error": None,
             }
     except urllib.error.HTTPError as e:
-        result = {"status": e.code, "body": e.read(256).decode(errors="replace"), "error": None}
+        try:
+            body = e.read(256).decode(errors="replace")
+        except Exception:
+            body = ""
+        result = {"status": e.code, "body": body, "error": None}
     except Exception as exc:
         result = {"status": None, "body": "", "error": str(exc)}
     return result

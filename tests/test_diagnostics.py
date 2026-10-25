@@ -1,7 +1,6 @@
 """Tests for diagnostics route — support bundle and webhook tester."""
 
 import json
-import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -98,8 +97,31 @@ def test_webhook_test_creates_log_entry(client, auth_headers, monkeypatch):
             headers=auth_headers,
             data={"csrf_token": _csrf(), "url": "http://example.com", "payload": "{}"},
         )
+
+    # With the webhook_log store isolated per-test (see conftest.py), this can
+    # check the logged entry directly instead of grepping rendered page
+    # content for a URL substring that could coincidentally match other
+    # content (or a stale leftover entry from a prior test run).
+    entries = wl.list_entries()
+    assert len(entries) == 1
+    assert entries[0]["source"] == "manual_test"
+    assert entries[0]["url"] == "http://example.com"
+    assert entries[0]["status"] == 200
+
+
+def test_webhook_log_payload_is_escaped_in_page(client, auth_headers):
+    """Finding 2(b): an HTML/JS payload must render as inert escaped text in
+    the delivery-log table, never as raw HTML."""
+    import app.services.webhook_log as wl
+
+    malicious_payload = '{"event": "<script>alert(1)</script>"}'
+    wl.log_delivery("manual_test", "http://example.com/xss", malicious_payload, 200, None)
+
     resp = client.get("/diagnostics", headers=auth_headers)
-    assert b"manual_test" in resp.content or b"example.com" in resp.content
+
+    assert resp.status_code == 200
+    assert b"&lt;script&gt;alert(1)&lt;/script&gt;" in resp.content
+    assert b"<script>alert(1)</script>" not in resp.content
 
 
 def test_webhook_replay_requires_auth(client):
@@ -122,26 +144,23 @@ def test_webhook_replay_unknown_id_redirects(client, auth_headers):
 
 
 def test_webhook_replay_sends_and_logs(client, auth_headers, monkeypatch):
+    # webhook_log._STORE_PATH is isolated per-test by the autouse
+    # _isolate_webhook_log fixture in conftest.py.
     import app.services.webhook_log as wl
 
-    with patch.object(wl, "_STORE_PATH", "/tmp/test_webhook_replay_log.json"):
-        if os.path.exists(wl._STORE_PATH):
-            os.remove(wl._STORE_PATH)
-        entry_id = wl.log_delivery("manual_test", "http://example.com/seed", "{}", 200, None)
+    entry_id = wl.log_delivery("manual_test", "http://example.com/seed", "{}", 200, None)
 
-        with patch("app.utils.http.post_json", return_value={"status": 204, "body": "", "error": None}):
-            resp = client.post(
-                f"/diagnostics/webhook-log/{entry_id}/replay",
-                headers=auth_headers,
-                data={"csrf_token": _csrf()},
-                follow_redirects=False,
-            )
+    with patch("app.utils.http.post_json", return_value={"status": 204, "body": "", "error": None}):
+        resp = client.post(
+            f"/diagnostics/webhook-log/{entry_id}/replay",
+            headers=auth_headers,
+            data={"csrf_token": _csrf()},
+            follow_redirects=False,
+        )
 
-        assert resp.status_code == 303
-        entries = wl.list_entries()
-        replay_entries = [e for e in entries if e["source"] == "replay"]
-        assert len(replay_entries) == 1
-        assert replay_entries[0]["url"] == "http://example.com/seed"
-        assert replay_entries[0]["status"] == 204
-
-        os.remove(wl._STORE_PATH)
+    assert resp.status_code == 303
+    entries = wl.list_entries()
+    replay_entries = [e for e in entries if e["source"] == "replay"]
+    assert len(replay_entries) == 1
+    assert replay_entries[0]["url"] == "http://example.com/seed"
+    assert replay_entries[0]["status"] == 204

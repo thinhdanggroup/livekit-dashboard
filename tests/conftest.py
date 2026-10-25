@@ -18,6 +18,15 @@ def setup_test_env():
     os.environ["ENABLE_SIP"] = "false"
 
 
+@pytest.fixture(autouse=True)
+def _isolate_webhook_log(tmp_path, monkeypatch):
+    """Point the webhook delivery log at a per-test tmp file so tests never
+    read or write the real shared /tmp/webhook_log.json."""
+    import app.services.webhook_log as wl
+
+    monkeypatch.setattr(wl, "_STORE_PATH", str(tmp_path / "webhook_log.json"))
+
+
 @pytest.fixture
 def client():
     """Create a test client"""

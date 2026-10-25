@@ -82,6 +82,30 @@ def test_post_json_http_error_body_truncated_to_256(monkeypatch):
     assert len(result["body"]) == 256
 
 
+def test_post_json_http_error_body_read_fails(monkeypatch):
+    """A receiver that sends error headers then stalls the body (e.g. a socket
+    timeout mid-read) must not propagate out of post_json — it should still
+    yield a result dict with the HTTPError's status code."""
+
+    class _StallingFP:
+        def read(self, amt=None):
+            raise TimeoutError("stalled body")
+
+        def close(self):
+            pass
+
+    def fake_urlopen(req, timeout):
+        raise urllib.error.HTTPError(req.full_url, 500, "Error", {}, _StallingFP())
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+    result = post_json("http://example.com", "{}")
+
+    assert result["status"] == 500
+    assert result["error"] is None
+    assert result["body"] == ""
+
+
 def test_post_json_connection_error(monkeypatch):
     def fake_urlopen(req, timeout):
         raise OSError("Connection refused")

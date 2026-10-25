@@ -135,8 +135,10 @@ def test_fire_webhook_force_bypasses_cooldown(tmp_path):
 def test_fire_webhook_logs_delivery(tmp_path, monkeypatch):
     import app.services.notifications as notif
     import app.services.webhook_log as wl
+    # webhook_log._STORE_PATH is isolated by the autouse _isolate_webhook_log
+    # fixture in conftest.py; only the notifications config store needs its
+    # own per-test path here.
     monkeypatch.setattr(notif, "_STORE_PATH", str(tmp_path / "n.json"))
-    monkeypatch.setattr(wl, "_STORE_PATH", str(tmp_path / "wh.json"))
     notif.save_config(webhook_url="http://example.com/hook")
     rule = SimpleNamespace(id="r1", name="x", metric="rooms_total", operator=">", threshold=1, severity="warning")
     with patch("app.utils.http.post_json", return_value={"status": 200, "body": "", "error": None}):
@@ -145,3 +147,27 @@ def test_fire_webhook_logs_delivery(tmp_path, monkeypatch):
     assert len(entries) == 1
     assert entries[0]["source"] == "alert"
     assert entries[0]["status"] == 200
+
+
+def test_fire_webhook_logs_delivery_error(tmp_path, monkeypatch):
+    """Finding 2(a): a failed delivery's error message must end up in the
+    webhook_log entry, not just in fire_webhook's return value."""
+    import app.services.notifications as notif
+    import app.services.webhook_log as wl
+    monkeypatch.setattr(notif, "_STORE_PATH", str(tmp_path / "n.json"))
+    notif.save_config(webhook_url="http://example.com/hook")
+    rule = SimpleNamespace(id="r1", name="x", metric="rooms_total", operator=">", threshold=1, severity="warning")
+    with patch(
+        "app.utils.http.post_json",
+        return_value={"status": None, "body": "", "error": "timed out"},
+    ):
+        result = notif.fire_webhook([rule], force=True)
+
+    assert result["status"] is None
+    assert result["error"] == "timed out"
+
+    entries = wl.list_entries()
+    assert len(entries) == 1
+    assert entries[0]["source"] == "alert"
+    assert entries[0]["status"] is None
+    assert entries[0]["error"] == "timed out"
