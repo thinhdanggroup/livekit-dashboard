@@ -356,6 +356,53 @@ class TestGhostRooms:
         assert 'data-room-name="r1"' not in r2.text
         assert 'href="/rooms/r1"' not in r2.text
 
+    def test_full_page_ghost_room_has_no_mutating_controls(self, rooms_client):
+        """The plain (non-partial) /rooms page has its own duplicated table
+        markup in index.html.j2 -- it must guard against ghost rows showing
+        live-looking Edit/Delete/View controls just like the partial does."""
+        c, mock_lk = rooms_client
+
+        mock_lk.list_rooms = AsyncMock(return_value=([self._make_room("r1")], 0.0))
+        c.get("/rooms", headers=_auth_headers())
+
+        mock_lk.list_rooms = AsyncMock(return_value=([], 0.0))
+        r2 = c.get("/rooms", headers=_auth_headers())
+        assert r2.status_code == status.HTTP_200_OK
+        assert "r1" in r2.text
+        assert "Ended" in r2.text
+        assert "/rooms/r1/delete" not in r2.text
+        assert 'data-room-name="r1"' not in r2.text
+        assert 'href="/rooms/r1"' not in r2.text
+
+    def test_full_page_mixed_live_and_ghost_rooms(self, rooms_client):
+        """A live room and a ghost room on the same page: the live room keeps
+        its normal controls, the ghost gets none."""
+        c, mock_lk = rooms_client
+
+        mock_lk.list_rooms = AsyncMock(return_value=([
+            self._make_room("live-room"),
+            self._make_room("gone-room"),
+        ], 0.0))
+        c.get("/rooms", headers=_auth_headers())
+
+        # "gone-room" disappears, "live-room" stays live.
+        mock_lk.list_rooms = AsyncMock(return_value=([self._make_room("live-room")], 0.0))
+        r2 = c.get("/rooms", headers=_auth_headers())
+        assert r2.status_code == status.HTTP_200_OK
+
+        # Ghost: no mutating controls.
+        assert "gone-room" in r2.text
+        assert "Ended" in r2.text
+        assert "/rooms/gone-room/delete" not in r2.text
+        assert 'data-room-name="gone-room"' not in r2.text
+        assert 'href="/rooms/gone-room"' not in r2.text
+
+        # Live room: normal controls still present.
+        assert "live-room" in r2.text
+        assert "/rooms/live-room/delete" in r2.text
+        assert 'data-room-name="live-room"' in r2.text
+        assert 'href="/rooms/live-room"' in r2.text
+
 
 class TestRoomAnnotationsService:
     def test_pin_unpin_get_pinned(self, tmp_path, monkeypatch):
