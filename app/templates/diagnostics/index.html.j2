@@ -75,7 +75,7 @@
             {% else %}
             <div class="d-flex align-items-center gap-2 mb-2">
               <span class="badge bg-{{ 'success' if webhook_result.status and webhook_result.status < 300 else 'danger' }}">
-                {{ webhook_result.status }} {{ webhook_result.reason }}
+                {{ webhook_result.status }}
               </span>
             </div>
             {% if webhook_result.body %}
@@ -84,6 +84,64 @@
             {% endif %}
             {% endif %}
           </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Webhook Delivery Log -->
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header">
+          <h6 class="mb-0"><i class="bi bi-list-check me-2"></i>Webhook Delivery Log</h6>
+        </div>
+        <div class="card-body">
+          {% if webhook_log_entries %}
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Source</th>
+                  <th>URL</th>
+                  <th>Status</th>
+                  <th>Payload</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for entry in webhook_log_entries %}
+                <tr>
+                  <td class="small text-muted">{{ entry.ts }}</td>
+                  <td><span class="badge bg-secondary">{{ entry.source }}</span></td>
+                  <td class="small text-break">{{ entry.url }}</td>
+                  <td>
+                    {% if entry.error %}
+                    <span class="badge bg-danger" title="{{ entry.error }}">error</span>
+                    {% else %}
+                    <span class="badge bg-{{ 'success' if entry.status and entry.status < 300 else 'danger' }}">
+                      {{ entry.status }}
+                    </span>
+                    {% endif %}
+                  </td>
+                  <td class="small text-muted font-monospace">{{ entry.payload[:60] }}</td>
+                  <td class="text-end">
+                    {% if not is_readonly() %}
+                    <form method="post" action="/diagnostics/webhook-log/{{ entry.id }}/replay">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                      <button type="submit" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-arrow-repeat"></i> Replay
+                      </button>
+                    </form>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <p class="text-muted small mb-0">No webhook deliveries logged yet.</p>
           {% endif %}
         </div>
       </div>

@@ -1,15 +1,14 @@
 """Diagnostics routes — support bundle export and webhook tester."""
 
-import json
-import urllib.request
-import urllib.error
 from fastapi import APIRouter, Depends, Request, Form
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.encoders import jsonable_encoder
 from typing import Optional
 
+import app.utils.http as http_util
 from app.services.livekit import LiveKitClient, get_livekit_client
 from app.services import room_annotations as annotations
+from app.services import webhook_log
 from app.security.basic_auth import requires_admin, get_current_user
 from app.security.csrf import get_csrf_token, verify_csrf_token
 
@@ -27,6 +26,7 @@ async def diagnostics_index(request: Request):
             "current_user": get_current_user(request),
             "csrf_token": get_csrf_token(request),
             "webhook_result": None,
+            "webhook_log_entries": webhook_log.list_entries(limit=50),
         },
     )
 
@@ -101,26 +101,8 @@ async def test_webhook(
     """Send a test POST to *url* with *payload* and return the response."""
     await verify_csrf_token(request)
 
-    result: dict = {}
-    try:
-        body = json.loads(payload).encode() if payload.strip() else b"{}"
-        req = urllib.request.Request(
-            url,
-            data=body,
-            headers={"Content-Type": "application/json", "User-Agent": "livekit-dashboard/1.0"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            result = {
-                "status": resp.status,
-                "reason": resp.reason,
-                "body": resp.read(512).decode(errors="replace"),
-                "error": None,
-            }
-    except urllib.error.HTTPError as e:
-        result = {"status": e.code, "reason": e.reason, "body": e.read(256).decode(errors="replace"), "error": None}
-    except Exception as exc:
-        result = {"status": None, "reason": None, "body": "", "error": str(exc)}
+    result = http_util.post_json(url, payload)
+    webhook_log.log_delivery("manual_test", url, payload, result.get("status"), result.get("error"))
 
     return request.app.state.templates.TemplateResponse(
         request,
@@ -132,5 +114,21 @@ async def test_webhook(
             "webhook_result": result,
             "webhook_url": url,
             "webhook_payload": payload,
+            "webhook_log_entries": webhook_log.list_entries(limit=50),
         },
     )
+
+
+@router.post("/diagnostics/webhook-log/{entry_id}/replay", dependencies=[Depends(requires_admin)])
+async def replay_webhook(request: Request, entry_id: str, csrf_token: str = Form(...)):
+    """Re-send a previously logged webhook delivery by its log entry id."""
+    await verify_csrf_token(request)
+
+    entry = webhook_log.get_entry(entry_id)
+    if entry is None:
+        return RedirectResponse(url="/diagnostics", status_code=303)
+
+    result = http_util.post_json(entry["url"], entry["payload"])
+    webhook_log.log_delivery("replay", entry["url"], entry["payload"], result.get("status"), result.get("error"))
+
+    return RedirectResponse(url="/diagnostics", status_code=303)
