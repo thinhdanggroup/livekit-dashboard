@@ -4,7 +4,7 @@ A **stateless**, self-hosted, server-side rendered dashboard for managing a priv
 
 ## Demo
 
-[![LiveKit Dashboard demo](./docs/video/demo-poster.png)](./docs/video/demo.mp4)
+https://github.com/user-attachments/assets/a36a0dec-3974-403f-b858-f65a80e48101
 
 A ~2-minute tour of the dashboard, recorded against a real LiveKit Cloud project: rooms, live participants, session history, egress, agent dispatch, the token sandbox, and settings. [Transcript](./docs/video/demo-transcript.md) · the recording script lives in [`scripts/demo/`](./scripts/demo/).
 
