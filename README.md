@@ -23,6 +23,12 @@ A ~2-minute tour of the dashboard, recorded against a real LiveKit Cloud project
 
 Every page is server-rendered with HTMX for auto-refresh, protected by HTTP Basic Auth + CSRF, and reads live from the LiveKit API on each request — there's no cache to go stale.
 
+## Architecture
+
+![Architecture diagram](./docs/images/architecture.png)
+
+One FastAPI process: it reads/writes the LiveKit server directly on every request (no cache, no database), keeps only ancillary state (notes, pins, logs) in local JSON files, and talks to Homer and an operator-configured webhook only when those optional features are enabled. A background poller (every 5s) and a report-rule scheduler (every 60s) run alongside request handling. [Interactive version](./docs/architecture.html) (download and open locally — GitHub won't execute it inline).
+
 ## Quick Start
 
 Requires Python 3.11+ and a LiveKit server (self-hosted or [LiveKit Cloud](https://cloud.livekit.io)).
