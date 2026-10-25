@@ -14,7 +14,7 @@
 
 <div class="alert alert-{{ 'danger' if health_summary.severity == 'down' else 'warning' if health_summary.severity == 'degraded' else 'success' }} mb-3" role="alert">
     <div>{{ health_summary.headline }}</div>
-    {% if health_summary.severity != 'down' %}
+    {% if not health_stats.error %}
     <ul class="mb-0">
         {% for detail in health_summary.details %}
         <li>{{ detail }}</li>
