@@ -82,6 +82,20 @@ def _isolate_report_rules(tmp_path, monkeypatch):
     monkeypatch.setattr(rr, "_STORE_PATH", str(tmp_path / "report_rules.json"))
 
 
+@pytest.fixture(autouse=True)
+def _isolate_room_history(tmp_path, monkeypatch):
+    """Point the room lifecycle history store at a per-test tmp file so tests
+    never read or write the real shared /tmp/room_history.json. This matters
+    even more than the other stores: the `client` fixture's lifespan startup
+    now also kicks off room_poller.run_poller_loop(), whose first tick calls
+    append_event()/prune_old() against _STORE_PATH -- without this isolation,
+    a developer's real local room-history file would get written to (or
+    read from) on every single test's startup."""
+    import app.services.room_history as rh
+
+    monkeypatch.setattr(rh, "_STORE_PATH", str(tmp_path / "room_history.json"))
+
+
 @pytest.fixture
 def client():
     """Create a test client"""

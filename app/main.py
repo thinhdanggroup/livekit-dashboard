@@ -4,7 +4,6 @@ Stateless SSR dashboard for LiveKit server management
 """
 
 import asyncio
-import contextlib
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -25,6 +24,7 @@ from app.routes import overview, rooms, egress, ingress, sip, settings, sandbox,
 from app.security.csrf import get_csrf_token
 from app.services import ip_allowlist
 from app.services import report_rules as report_rules_service
+from app.services import room_poller
 from app.utils.formatters import format_duration, format_pct, status_color, format_number
 
 logger = logging.getLogger(__name__)
@@ -48,14 +48,19 @@ async def lifespan(app: FastAPI):
     else:
         print("✅ All required environment variables are set")
 
-    scheduler_task = asyncio.create_task(report_rules_service.run_scheduler_loop())
+    background_tasks = [
+        asyncio.create_task(report_rules_service.run_scheduler_loop()),
+        asyncio.create_task(room_poller.run_poller_loop()),
+    ]
 
     yield
 
     # Shutdown
-    scheduler_task.cancel()
-    with contextlib.suppress(asyncio.CancelledError):
-        await scheduler_task
+    for task in background_tasks:
+        task.cancel()
+    # return_exceptions=True so one task's CancelledError doesn't prevent the
+    # other background task from being awaited/cleaned up.
+    await asyncio.gather(*background_tasks, return_exceptions=True)
     print("👋 LiveKit Dashboard shutting down...")
 
 
