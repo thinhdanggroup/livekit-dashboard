@@ -3,6 +3,7 @@ LiveKit Dashboard - Main Application
 Stateless SSR dashboard for LiveKit server management
 """
 
+import logging
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -22,6 +23,8 @@ from app.routes import overview, rooms, egress, ingress, sip, settings, sandbox,
 from app.security.csrf import get_csrf_token
 from app.services import ip_allowlist
 from app.utils.formatters import format_duration, format_pct, status_color, format_number
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -73,23 +76,6 @@ async def ensure_csrf_token(request: Request, call_next):
 
 
 @app.middleware("http")
-async def enforce_ip_allowlist(request: Request, call_next):
-    """Block requests from IPs not present on a configured allowlist.
-
-    An empty/unconfigured allowlist means "allow all" (see
-    app.services.ip_allowlist), so this is a no-op until an operator
-    explicitly configures one via Settings.
-    """
-    if request.url.path == "/health":
-        return await call_next(request)
-    client_ip = request.client.host if request.client else "unknown"
-    if not ip_allowlist.is_allowed(client_ip):
-        from fastapi.responses import Response as _Resp
-        return _Resp("Access denied.", status_code=403)
-    return await call_next(request)
-
-
-@app.middleware("http")
 async def enforce_readonly_mode(request: Request, call_next):
     """Block mutating requests when DASHBOARD_ROLE=readonly."""
     if os.environ.get("DASHBOARD_ROLE", "admin").lower() == "readonly":
@@ -108,6 +94,42 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
+
+# IMPORTANT: Starlette builds the middleware stack with the LAST-registered
+# `@app.middleware("http")`/`add_middleware()` call as the OUTERMOST layer
+# (it runs first, before anything registered earlier). This middleware is
+# therefore registered after CORSMiddleware and enforce_readonly_mode above
+# so that it executes BEFORE both of them -- a blocked IP must get a flat,
+# generic "Access denied." 403 and never reach CORS or readonly-mode logic,
+# which would otherwise leak information about the app's state to a caller
+# that shouldn't get any response at all. (add_security_headers, registered
+# further below after the routers, ends up outermost of all -- that's fine,
+# it only decorates whatever response comes back, it never rejects one.)
+@app.middleware("http")
+async def enforce_ip_allowlist(request: Request, call_next):
+    """Block requests from IPs not present on a configured allowlist.
+
+    An empty/unconfigured allowlist means "allow all" (see
+    app.services.ip_allowlist), so this is a no-op until an operator
+    explicitly configures one via Settings. If the allowlist check itself
+    raises for any reason (e.g. an unforeseen bug in the store), we fail
+    OPEN -- allow the request through -- rather than locking every
+    operator out of the dashboard because of a corrupted config file.
+    """
+    if request.url.path == "/health":
+        return await call_next(request)
+    client_ip = request.client.host if request.client else "unknown"
+    try:
+        allowed = ip_allowlist.is_allowed(client_ip)
+    except Exception:
+        logger.exception("enforce_ip_allowlist: is_allowed() raised; failing open (allowing request)")
+        allowed = True
+    if not allowed:
+        from fastapi.responses import Response as _Resp
+        return _Resp("Access denied.", status_code=403)
+    return await call_next(request)
+
 
 # Setup Jinja2 templates
 templates = Jinja2Templates(directory="app/templates")

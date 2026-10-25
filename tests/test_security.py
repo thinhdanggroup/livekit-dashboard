@@ -74,7 +74,12 @@ def _csrf():
 
 
 def test_blocked_ip_gets_403(client, tmp_path, monkeypatch):
-    """A client whose IP is not on a configured allowlist gets 403, except on /health."""
+    """A client whose IP is not on a configured allowlist gets 403, except on /health.
+
+    Also verifies no basic-auth challenge leaks: the 403 must come from the
+    IP-allowlist middleware short-circuiting BEFORE requires_admin ever
+    runs, so there must be no WWW-Authenticate header on the response.
+    """
     import app.services.ip_allowlist as ipa
     monkeypatch.setattr(ipa, "_STORE_PATH", str(tmp_path / "a.json"))
     ipa.save_allowlist("203.0.113.5", requester_ip="203.0.113.5")  # testclient's IP is not this
@@ -82,6 +87,39 @@ def test_blocked_ip_gets_403(client, tmp_path, monkeypatch):
     assert resp.status_code == 200
     resp2 = client.get("/rooms")
     assert resp2.status_code == 403
+    assert "WWW-Authenticate" not in resp2.headers
+    assert resp2.content == b"Access denied."
+
+
+def test_blocked_ip_post_gets_generic_denial_not_readonly_message(client, tmp_path, monkeypatch):
+    """A blocked IP's mutating POST must get the flat IP-allowlist denial,
+    never the readonly-mode message or a CORS-specific response -- the IP
+    check must run before both of those middlewares, not after."""
+    import app.services.ip_allowlist as ipa
+    monkeypatch.setattr(ipa, "_STORE_PATH", str(tmp_path / "a.json"))
+    ipa.save_allowlist("203.0.113.5", requester_ip="203.0.113.5")
+    monkeypatch.setenv("DASHBOARD_ROLE", "readonly")
+    resp = client.post(
+        "/rooms",
+        data={"csrf_token": _csrf(), "room_name": "x", "empty_timeout": "300",
+              "max_participants": "0", "metadata": ""},
+    )
+    assert resp.status_code == 403
+    assert resp.content == b"Access denied."
+    assert b"Read-only" not in resp.content
+
+
+def test_corrupt_ip_allowlist_store_fails_open_through_middleware(client, auth_headers, tmp_path, monkeypatch):
+    """A corrupted store (here: a directory sitting at the configured path,
+    the realistic Docker-bind-mount failure mode) must never turn into a
+    500 or a blanket 403 -- the middleware must fail open and let allowed
+    requests through normally."""
+    import app.services.ip_allowlist as ipa
+    store_path = tmp_path / "a.json"
+    store_path.mkdir()
+    monkeypatch.setattr(ipa, "_STORE_PATH", str(store_path))
+    resp = client.get("/rooms", headers=auth_headers)
+    assert resp.status_code == 200
 
 
 def test_allowlisted_ip_passes(client, tmp_path, monkeypatch, auth_headers):
@@ -95,21 +133,44 @@ def test_allowlisted_ip_passes(client, tmp_path, monkeypatch, auth_headers):
 
 
 def test_settings_page_shows_failed_logins_and_allowlist_form(client, auth_headers, tmp_path, monkeypatch):
-    """The settings page surfaces recent failed logins."""
+    """The settings page surfaces recent failed logins AND the allowlist
+    management form (pre-filled from the current allowlist)."""
     import app.services.security_log as sl
+    import app.services.ip_allowlist as ipa
     monkeypatch.setattr(sl, "_STORE_PATH", str(tmp_path / "s.json"))
+    monkeypatch.setattr(ipa, "_STORE_PATH", str(tmp_path / "a.json"))
     sl.log_failed_login("9.9.9.9", "admin")
+    ipa.save_allowlist("198.51.100.9, testclient", requester_ip="testclient")
     resp = client.get("/settings", headers=auth_headers)
+    assert resp.status_code == 200
     assert b"9.9.9.9" in resp.content
+    assert b'name="ip_allowlist"' in resp.content
+    assert b'action="/settings/security"' in resp.content
+    assert b"198.51.100.9" in resp.content  # pre-filled from ip_allowlist_raw
+
+
+def test_security_form_hidden_in_readonly_mode(client, auth_headers, monkeypatch):
+    """The allowlist-save form must be gated by is_readonly(), matching the
+    pattern used for other mutating controls (e.g. the rooms delete button)."""
+    monkeypatch.setenv("DASHBOARD_ROLE", "readonly")
+    resp = client.get("/settings", headers=auth_headers)
+    assert resp.status_code == 200
+    assert b'action="/settings/security"' not in resp.content
 
 
 def test_save_security_settings_updates_allowlist(client, auth_headers, tmp_path, monkeypatch):
-    """POST /settings/security persists the submitted allowlist and redirects."""
+    """POST /settings/security persists the submitted allowlist, redirects,
+    and -- critically -- always keeps the requester's own IP in the saved
+    list so the submitting operator can never lock themselves out."""
     import app.services.ip_allowlist as ipa
     monkeypatch.setattr(ipa, "_STORE_PATH", str(tmp_path / "a.json"))
     resp = client.post("/settings/security", headers=auth_headers,
                         data={"csrf_token": _csrf(), "ip_allowlist": "203.0.113.5"},
                         follow_redirects=False)
     assert resp.status_code == 303
-    assert "203.0.113.5" in ipa.get_allowlist()
+    saved = ipa.get_allowlist()
+    assert "203.0.113.5" in saved
+    # TestClient's request.client.host is the literal string "testclient" --
+    # that's the requester_ip save_security_settings must have passed through.
+    assert "testclient" in saved
 

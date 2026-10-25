@@ -37,6 +37,27 @@ def _isolate_ghost_rooms(tmp_path, monkeypatch):
     monkeypatch.setattr(gr, "_STORE_PATH", str(tmp_path / "ghost_rooms.json"))
 
 
+@pytest.fixture(autouse=True)
+def _isolate_ip_allowlist(tmp_path, monkeypatch):
+    """Point the IP allowlist store at a per-test tmp file so tests never
+    read or write the real shared /tmp/ip_allowlist.json. Without this, the
+    full suite only passes by accident of that file not existing on a given
+    machine -- a developer with a real allowlist saved locally would see
+    every request from every test get 403'd."""
+    import app.services.ip_allowlist as ipa
+
+    monkeypatch.setattr(ipa, "_STORE_PATH", str(tmp_path / "ip_allowlist.json"))
+
+
+@pytest.fixture(autouse=True)
+def _isolate_security_log(tmp_path, monkeypatch):
+    """Point the failed-login security log at a per-test tmp file so tests
+    never read or write the real shared /tmp/security_log.json."""
+    import app.services.security_log as sl
+
+    monkeypatch.setattr(sl, "_STORE_PATH", str(tmp_path / "security_log.json"))
+
+
 @pytest.fixture
 def client():
     """Create a test client"""

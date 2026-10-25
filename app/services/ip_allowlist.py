@@ -18,17 +18,29 @@ Schema: {"ips": ["1.2.3.4", ...]}
 """
 
 import json
+import logging
 import os
 
+
+logger = logging.getLogger(__name__)
 
 _STORE_PATH = os.environ.get("IP_ALLOWLIST_FILE", "/tmp/ip_allowlist.json")
 
 
 def _load() -> dict:
+    """Load the raw store contents.
+
+    Any failure to read or parse the store (missing file, a directory at
+    the configured path, a permission error, invalid JSON, or
+    non-UTF-8/undecodable bytes) must never propagate -- it is treated the
+    same as "no store yet" so that a corrupt or misconfigured store fails
+    open (allow-all) rather than locking every operator out.
+    """
     try:
-        with open(_STORE_PATH) as f:
+        with open(_STORE_PATH, encoding="utf-8") as f:
             return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+        logger.warning("ip_allowlist store unreadable at %s (%s); treating as empty", _STORE_PATH, exc)
         return {}
 
 
@@ -48,8 +60,21 @@ def _parse_ips(raw: str) -> list[str]:
 
 
 def get_allowlist() -> list[str]:
+    """Return the configured allowlist, or [] (allow-all) for any malformed store.
+
+    Only a dict whose "ips" key is a list of strings is honored. Any other
+    shape -- a bare list, a string, null, a list containing non-strings,
+    etc. -- is treated as "no allowlist configured" rather than raising or
+    being coerced into something that could accidentally deny everyone
+    (e.g. list()-exploding a string into single-character "IPs").
+    """
     cfg = _load()
-    return list(cfg.get("ips", []))
+    if not isinstance(cfg, dict):
+        return []
+    ips = cfg.get("ips", [])
+    if not isinstance(ips, list) or not all(isinstance(ip, str) for ip in ips):
+        return []
+    return list(ips)
 
 
 def save_allowlist(raw: str, requester_ip: str) -> list[str]:
